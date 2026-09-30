@@ -249,7 +249,7 @@ td.prod{color:var(--shu);font-weight:700}
             <span class="rank" id="resRank">天晴れ</span>
           </div>
           <p id="resText"></p>
-          <p class="unlock" id="unlockNote" hidden>薩魔ホグワーツモードが解放された。あらすじの画面の「流儀」から選べる。</p>
+          <p class="unlock" id="unlockNote" hidden>薩魔ホワグーツモードが解放された。あらすじの画面の「流儀」から選べる。</p>
           <dl class="stats" id="resStats"></dl>
           <div class="row">
             <button class="go" id="againBtn" type="button">再び出陣</button>
@@ -275,7 +275,7 @@ const WEAPONS = {
   gun:    { name:'火縄銃', unit:'発', dmg:25,  ammo:24,  reload:2.0,  speed:120, spread:0.3,  note:'まっすぐ飛ぶ。砲門を一発で潰す' },
   cannon: { name:'大砲',   unit:'発', dmg:120, ammo:5,   reload:3.5,  speed:75,  spread:0.25, note:'帆柱を一撃。周りの瑛兵を吹き飛ばし、火を放つ' },
 };
-// 薩魔ホグワーツモード（難 HARD を制すると解放）。役割と「威力 × 回数 ＝ 600」は同じ
+// 薩魔ホワグーツモード（難 HARD を制すると解放）。役割と「威力 × 回数 ＝ 600」は同じ
 const MAGIC = {
   bow:    { name:'水の魔法',   unit:'発', dmg:6,   ammo:100, reload:0.45, speed:48,  spread:0.55, note:'水の弾が山なりに飛ぶ。当たった瑛兵は海へ押し流す' },
   gun:    { name:'火の魔法',   unit:'発', dmg:25,  ammo:24,  reload:2.0,  speed:120, spread:0.3,  note:'火球がまっすぐ飛ぶ。帆に当たれば必ず燃え上がる' },
@@ -306,13 +306,13 @@ const rand=(a,b)=>a+Math.random()*(b-a);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// ---------- 流儀（通常／薩魔ホグワーツ） ----------
+// ---------- 流儀（通常／薩魔ホワグーツ） ----------
 let magicUnlocked=false, modeKey='normal', mode='normal';
-if(location.hash==='#hogwarts') magicUnlocked=true;   // 試し用の抜け道：リンクの末尾に #hogwarts を付けると解放
+if(location.hash==='#howaguts') magicUnlocked=true;   // 試し用の抜け道：リンクの末尾に #howaguts を付けると解放
 try{ if(localStorage.getItem('satsuma-magic')==='1') magicUnlocked=true; const m=localStorage.getItem('satsuma-mode'); if(m==='magic'&&magicUnlocked) modeKey='magic'; }catch(e){}
 const WEP = () => mode==='magic' ? MAGIC : WEAPONS;
 function renderModes(){
-  $('modes').innerHTML = [['normal','通常','弓矢・火縄銃・大砲'],['magic','薩魔ホグワーツ', magicUnlocked?'水・火・落雷の魔法':'未解放：難 HARD を制すると選べる']].map(([k,l,d])=>{
+  $('modes').innerHTML = [['normal','通常','弓矢・火縄銃・大砲'],['magic','薩魔ホワグーツ', magicUnlocked?'水・火・落雷の魔法':'未解放：難 HARD を制すると選べる']].map(([k,l,d])=>{
     const locked=k==='magic'&&!magicUnlocked;
     return `<button type="button" class="diff mode" role="radio" aria-checked="${k===modeKey}" data-m="${k}"${locked?' disabled':''}><b>${l}</b><span>${d}</span></button>`;
   }).join('');
@@ -690,7 +690,7 @@ for(const z of [0.0,1.1,1.95]){ const cr=new THREE.Mesh(new THREE.CylinderGeomet
 const linstock=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,color:0xff9040,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
 linstock.scale.set(0.2,0.2,1); linstock.position.set(-0.55,4.05,-1.3); scene.add(linstock);
 
-// ---------- 薩魔ホグワーツの小道具 ----------
+// ---------- 薩魔ホワグーツの小道具 ----------
 const SPELL_COL={bow:0x7fc8ff, gun:0xff9a40, cannon:0xe6e0ff};
 const wandG=new THREE.Group(); arms.add(wandG);
 { const w=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.024,0.5,6).rotateX(Math.PI/2),lam(0x3b2616)); w.position.z=0.9; wandG.add(w); }

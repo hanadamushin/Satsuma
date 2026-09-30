@@ -1,0 +1,1759 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="ひとりで海岸警備を任された薩魔藩士が、夕暮れの浜から瑛国の戦列艦を狙う3D砲撃ゲーム。">
+<title>薩魔海岸砲撃戦</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@500;800&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap">
+<style>
+/* Layout: 浜から沖の瑛艦を望む3Dの舞台(16:9)を中央に置き、その下に得物の札を並べる。単一テーマ(夜の藍)で固定。 */
+:root{
+  --night:#131925;
+  --panel:#1c2433;
+  --paper:#ece2cc;      /* 和紙 */
+  --sumi:#1d1a17;       /* 墨 */
+  --ai:#27406a;         /* 藍 */
+  --shu:#cf4a2c;        /* 朱 */
+  --kin:#c9a24a;        /* 金 */
+  --muted:#9aa3b5;
+  --line:rgba(236,226,204,.16);
+  --font-display:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
+  --font-ui:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--night);color:var(--paper);font-family:var(--font-ui);}
+.wrap{max-width:1280px;margin:0 auto;padding-inline:16px;padding-block:12px 20px;display:flex;flex-direction:column;gap:10px}
+.bar{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.bar h1{font-family:var(--font-display);font-weight:800;font-size:clamp(18px,2.4vw,26px);letter-spacing:.12em;margin:0;text-wrap:balance}
+.bar h1 small{font-family:var(--font-ui);font-weight:400;font-size:12px;letter-spacing:.08em;color:var(--muted);margin-left:.8em}
+.ghost{background:transparent;color:var(--paper);border:1px solid var(--line);border-radius:4px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
+.ghost:hover{border-color:var(--kin)}
+button:focus-visible{outline:2px solid var(--kin);outline-offset:2px}
+
+#stage{position:relative;width:100%;max-width:min(1280px, calc((100vh - 190px) * 16 / 9));min-width:0;margin-inline:auto;aspect-ratio:16/9;background:#0e1420;border:1px solid var(--line);overflow:hidden;user-select:none;-webkit-user-select:none}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:none}
+/* 木版刷りの質感：周辺減光と紙の粒 */
+.post{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,transparent 58%,rgba(10,8,14,.42) 100%)}
+.grain{position:absolute;inset:0;pointer-events:none;opacity:.16;mix-blend-mode:overlay;background-size:160px 160px}
+
+/* 戦況表示 */
+.hud{position:absolute;inset:0;pointer-events:none;font-variant-numeric:tabular-nums}
+.hud .box{position:absolute;top:clamp(6px,1.4vw,16px);background:rgba(19,25,37,.62);border:1px solid var(--line);padding:clamp(4px,.8vw,10px) clamp(8px,1.2vw,14px);display:flex;flex-direction:column;gap:4px}
+.hud .l{left:clamp(6px,1.4vw,16px)}
+.hud .r{right:clamp(6px,1.4vw,16px);align-items:flex-end}
+.timer{display:flex;align-items:baseline;gap:8px}
+.timer span{font-size:clamp(10px,1vw,12px);color:var(--muted);letter-spacing:.1em}
+.timer b{font-family:var(--font-display);font-weight:800;font-size:clamp(22px,3.2vw,40px);line-height:1;letter-spacing:.04em}
+.timer em{font-style:normal;font-family:var(--font-display);font-size:clamp(11px,1.2vw,14px);background:var(--shu);color:var(--paper);padding:1px 6px}
+.timer.warn b{color:#ff9c86}
+.meter{display:flex;align-items:center;gap:8px;font-size:clamp(10px,1vw,12px);color:var(--muted)}
+.meter i{display:block;width:clamp(70px,12vw,160px);height:6px;background:rgba(236,226,204,.15)}
+.meter s{display:block;height:100%;width:0;background:#e59a54;text-decoration:none}
+.meter b{color:var(--paper);font-weight:700;min-width:3.2em;text-align:right}
+.crew{font-size:clamp(11px,1.1vw,13px);color:var(--muted);letter-spacing:.06em}
+.crew b{font-family:var(--font-display);font-size:clamp(20px,2.6vw,32px);color:var(--paper);font-weight:800;margin:0 2px}
+.prow{display:flex;align-items:center;gap:6px;font-size:clamp(10px,1vw,12px);color:var(--muted)}
+.prow > span:first-child{min-width:2.4em;text-align:right}
+.seg{display:flex;flex-direction:column;align-items:center;gap:1px;font-style:normal}
+.seg i{display:block;width:clamp(22px,3.4vw,42px);height:6px;background:rgba(236,226,204,.15)}
+.seg s{display:block;height:100%;width:100%;background:#d9c79a;text-decoration:none}
+.seg.dead s{background:transparent}
+.seg.dead i{background:rgba(207,74,44,.55)}
+.seg em{font-style:normal;font-size:9px;line-height:1;color:var(--muted)}
+.mi{display:inline-flex;flex-direction:column;gap:1px;margin-left:3px}
+.mi u{display:block;width:5px;text-decoration:none;background:var(--paper)}
+.mi u.t{height:6px}
+.mi u.l{height:10px}
+.mi u.off{background:rgba(207,74,44,.55)}
+.prow b{color:var(--paper);font-size:clamp(12px,1.3vw,15px)}
+.banner{position:absolute;left:0;right:0;top:20%;text-align:center;font-family:var(--font-display);font-weight:800;font-size:clamp(20px,3.6vw,44px);letter-spacing:.18em;color:var(--paper);text-shadow:0 2px 0 rgba(0,0,0,.6),0 0 18px rgba(0,0,0,.5);opacity:0;pointer-events:none}
+.banner.show{animation:bn 2.4s ease forwards}
+@keyframes bn{0%{opacity:0;transform:translateY(8px)}12%{opacity:1;transform:none}78%{opacity:1}100%{opacity:0}}
+.fx{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.fx span{position:absolute;transform:translate(-50%,-100%);font-weight:700;font-size:clamp(11px,1.3vw,16px);white-space:nowrap;text-shadow:0 1px 0 #000,0 0 6px rgba(0,0,0,.8);animation:fl 1.2s ease-out forwards}
+.fx span.big{font-family:var(--font-display);font-weight:800;font-size:clamp(18px,2.6vw,34px);animation-duration:1.8s}
+@keyframes fl{from{opacity:1;margin-top:0}to{opacity:0;margin-top:-34px}}
+.reticle{position:absolute;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;pointer-events:none;border-radius:50%;
+  background:conic-gradient(var(--shu) calc(var(--p,1) * 360deg), transparent 0);-webkit-mask:radial-gradient(circle,transparent 13px,#000 14px,#000 16px,transparent 17px);mask:radial-gradient(circle,transparent 13px,#000 14px,#000 16px,transparent 17px)}
+.reticle.ready{background:rgba(236,226,204,.85)}
+.cross{position:absolute;left:0;top:0;pointer-events:none;width:0;height:0}
+.cross::before,.cross::after{content:"";position:absolute;background:rgba(236,226,204,.9)}
+.cross::before{left:-9px;top:-.5px;width:18px;height:1px}
+.cross::after{left:-.5px;top:-9px;width:1px;height:18px}
+.flash{position:absolute;inset:0;pointer-events:none;background:#ffdcb0;opacity:0}
+.zoomvig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.75) 72%);opacity:0;transition:opacity .25s}
+.zoomvig.on{opacity:1}
+
+.overlay{position:absolute;inset:0;overflow:auto;background:linear-gradient(180deg,rgba(19,25,37,.55),rgba(19,25,37,.82));display:grid;place-items:center;padding:clamp(12px,3vw,36px)}
+.sheet{background:var(--paper);color:var(--sumi);max-width:1060px;width:100%;display:grid;grid-template-columns:auto minmax(min(460px,100%),1fr);gap:clamp(16px,3vw,40px);padding:clamp(16px,2.6vw,32px);box-shadow:0 20px 50px rgba(0,0,0,.45);position:relative}
+.sheet::before{content:"";position:absolute;inset:6px;border:1px solid rgba(29,26,23,.35);pointer-events:none}
+.story{writing-mode:vertical-rl;font-family:var(--font-display);font-size:clamp(14px,1.5vw,17px);line-height:2.05;letter-spacing:.08em;max-height:min(480px,64vh);margin:0;display:flex;flex-direction:column;gap:0}
+.story h2{font-weight:800;font-size:1.7em;letter-spacing:.2em;margin:0 0 0 .6em;color:var(--sumi)}
+.story h2 .seal{display:inline-block;writing-mode:horizontal-tb;background:var(--shu);color:var(--paper);font-size:.42em;letter-spacing:0;padding:.3em .35em;margin-top:.6em;line-height:1.2}
+.story p{margin:0 0 0 .5em}
+.story .note{font-family:var(--font-ui);font-size:.72em;color:#6d655a;margin-right:auto}
+.info{display:flex;flex-direction:column;gap:12px;min-width:0}
+.info h3{font-family:var(--font-display);font-size:15px;letter-spacing:.14em;margin:0;border-bottom:1px solid rgba(29,26,23,.3);padding-bottom:4px}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:5px 8px;text-align:right;border-bottom:1px solid rgba(29,26,23,.14);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td.note{text-align:left;color:#4a443c;font-size:12px;white-space:normal;min-width:10em}
+thead th{font-weight:700;font-size:11px;letter-spacing:.08em;color:#6d655a}
+td.prod{color:var(--shu);font-weight:700}
+.hint{font-size:12px;line-height:1.7;color:#4a443c;margin:0}
+.hint b{color:var(--sumi)}
+.diffs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.diff{background:transparent;border:1px solid rgba(29,26,23,.35);color:var(--sumi);padding:8px 10px;text-align:left;cursor:pointer;font:inherit;display:flex;flex-direction:column;gap:2px;min-width:0}
+.diff b{font-family:var(--font-display);font-weight:800;font-size:18px;letter-spacing:.1em}
+.diff b small{font-family:var(--font-ui);font-size:10px;letter-spacing:.14em;color:#6d655a;margin-left:6px;font-weight:700}
+.diff span{font-size:11px;color:#4a443c;line-height:1.5}
+.diff[aria-checked="true"]{background:var(--sumi);color:var(--paper);border-color:var(--sumi)}
+.diff[aria-checked="true"] span,.diff[aria-checked="true"] b small{color:#cfc6b2}
+.modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.diff.mode[data-m="magic"][aria-checked="true"]{background:#2b2350;border-color:#2b2350}
+.diff:disabled{opacity:.5;cursor:not-allowed;border-style:dashed}
+.story .magic-note{color:#4b3d8a}
+.unlock{border:1px solid #6b58b8;background:rgba(107,88,184,.1);color:#2b2350;padding:8px 12px;font-family:var(--font-display);font-weight:800;letter-spacing:.06em}
+.timer em.mg{background:#5b4a9e}
+.go{align-self:flex-start;background:var(--shu);color:var(--paper);border:0;font-family:var(--font-display);font-weight:800;font-size:20px;letter-spacing:.4em;padding:10px 22px 10px 30px;cursor:pointer;box-shadow:0 3px 0 #8e2f1a}
+.go:hover{filter:brightness(1.08)}
+.go:active{transform:translateY(2px);box-shadow:0 1px 0 #8e2f1a}
+.go:disabled{opacity:.5;cursor:default}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.err{color:var(--shu);font-size:12px;margin:0}
+.parts-tbl td:first-child{font-weight:700}
+
+.result .sheet{grid-template-columns:minmax(0,1fr);max-width:640px;text-align:left}
+.result h2{font-family:var(--font-display);font-weight:800;font-size:clamp(26px,4vw,40px);letter-spacing:.2em;margin:0}
+.result .rank{display:inline-block;background:var(--shu);color:var(--paper);font-family:var(--font-display);padding:2px 10px;font-size:14px;letter-spacing:.2em;margin-top:6px}
+.result p{font-family:var(--font-display);line-height:1.9;margin:0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px 16px;margin:0}
+.stats div{border-top:1px solid rgba(29,26,23,.25);padding-top:4px}
+.stats dt{font-size:11px;color:#6d655a;letter-spacing:.08em}
+.stats dd{margin:0;font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+
+.arms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:8px;width:100%;max-width:min(1280px, calc((100vh - 190px) * 16 / 9));margin-inline:auto}
+.arm{position:relative;display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:auto auto;column-gap:10px;align-items:baseline;text-align:left;background:var(--panel);color:var(--paper);border:1px solid var(--line);border-radius:3px;padding:8px 12px 10px;font:inherit;cursor:pointer;overflow:hidden;min-width:0}
+.arm .k{grid-row:1/3;align-self:center;font-size:11px;color:var(--muted);border:1px solid var(--line);padding:1px 6px;border-radius:2px}
+.arm .n{font-family:var(--font-display);font-weight:800;font-size:clamp(14px,1.8vw,19px);letter-spacing:.12em;white-space:nowrap}
+.arm .s{grid-column:2/4;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.arm .a{font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted);white-space:nowrap}
+.arm .a b{font-size:clamp(16px,2vw,22px);color:var(--paper);font-weight:700;margin-right:2px}
+.arm .rl{position:absolute;left:0;bottom:0;height:3px;width:calc(var(--p,1) * 100%);background:var(--kin)}
+.arm.on{border-color:var(--shu);background:#2a2027;box-shadow:inset 0 0 0 1px var(--shu)}
+.arm.on .n{color:#f4d9b8}
+.arm.empty{opacity:.45}
+.scope{background:var(--panel);color:var(--paper);border:1px solid var(--line);border-radius:3px;padding:6px 14px;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.scope b{font-family:var(--font-display);font-size:clamp(13px,1.6vw,17px);letter-spacing:.1em}
+.scope span{font-size:10px;color:var(--muted)}
+.scope[aria-pressed="true"]{border-color:var(--kin);box-shadow:inset 0 0 0 1px var(--kin)}
+.help{font-size:12px;color:var(--muted);margin:0;text-align:center;line-height:1.7}
+
+@media (max-width:760px){
+  .sheet{grid-template-columns:minmax(0,1fr)}
+  .story{writing-mode:horizontal-tb;max-height:none;line-height:1.9}
+  .story h2{margin:0 0 .4em}
+  .story h2 .seal{margin:0 0 0 .6em;vertical-align:middle}
+  .story p{margin:0 0 .5em}
+  #stage.menu{aspect-ratio:auto;max-width:none}
+  #stage.menu #cv,#stage.menu .post,#stage.menu .grain{display:none}
+  #stage.menu .overlay{position:relative;padding:0}
+  .arm .s{display:none}
+  .arm{grid-template-columns:auto 1fr;padding:6px 8px 8px}
+  .arm .a{grid-column:2}
+  .arms{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .scope{grid-column:1/-1;flex-direction:row;gap:8px}
+  .diffs{grid-template-columns:minmax(0,1fr)}
+  .hud .r .prow{display:none}
+}
+@media (prefers-reduced-motion:reduce){ .fx span{animation:none;opacity:.9} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="bar">
+    <h1>薩魔海岸砲撃戦<small>ひとりきりの海岸警備</small></h1>
+    <button class="ghost" id="mute" type="button">音：入</button>
+  </header>
+
+  <div id="stage" class="menu">
+    <canvas id="cv"></canvas>
+    <div class="post"></div>
+    <div class="grain" id="grain"></div>
+    <div class="hud" id="hud" hidden>
+      <div class="box l">
+        <div class="timer" id="timer"><span>反撃まで</span><b id="tVal">2:00</b><em id="dLabel">並</em><em id="mLabel" class="mg" hidden>魔</em></div>
+        <div class="meter"><span>瑛艦 迎撃準備</span><i><s id="prepBar"></s></i><b id="prepPct">0%</b></div>
+      </div>
+      <div class="box r">
+        <div class="crew">瑛兵 残り<b id="crewVal">30</b>/ <span id="crewMax">30</span></div>
+        <div class="prow"><span>船体</span><span class="seg" id="sec-bow"><i><s></s></i><em>首</em></span><span class="seg" id="sec-mid"><i><s></s></i><em>中</em></span><span class="seg" id="sec-stern"><i><s></s></i><em>尾</em></span></div>
+        <div class="prow"><span>帆柱</span><span id="mastIcons"></span><span style="margin-left:8px">砲門</span><b id="portVal">16</b></div>
+      </div>
+      <div class="banner" id="banner"></div>
+      <div class="zoomvig" id="zoomvig"></div>
+      <div class="fx" id="fx"></div>
+      <div class="reticle" id="reticle"></div>
+      <div class="cross" id="cross"></div>
+      <div class="flash" id="flash"></div>
+    </div>
+
+    <section id="start" class="overlay">
+      <div class="sheet">
+        <div class="story">
+          <h2>浜の番所にて<span class="seal">あらすじ</span></h2>
+          <p>文久の頃、夏。錦江湾を望む浜の番所に、ひとりの若い薩魔藩士がいた。</p>
+          <p>その日、仲間はみな城下へ呼び戻されていた。海岸の警備を任されたのは、彼ただひとり。</p>
+          <p>夕刻。水平線に黒い煙が立ちのぼる。湾口に錨を下ろしたのは、三本の帆柱を持つ瑛吉利の大きな軍艦であった。</p>
+          <p>甲板では瑛兵が慌ただしく立ち働き、舷側の砲門がひとつ、またひとつと開きはじめる。すべての砲門が開けば、この浜は砲火に呑まれる。</p>
+          <p>手元にあるのは、弓と矢、火縄銃、そして番所に据えられた古い大砲が一門。その前に瑛兵を一人残らず討ち取るか、海へ落とせ。</p>
+          <p class="magic-note" id="magicNote" hidden>――もっとも、この藩士には誰にも言えぬ秘密があった。霧島の山奥の魔法学舎で、水・火・雷の術を修めていたのである。</p>
+          <p class="note">※史実とは異なる創作の物語です</p>
+        </div>
+        <div class="info">
+          <h3 id="wHead">得物　攻撃力 × 弾数 ＝ 六百</h3>
+          <div class="tbl"><table>
+            <thead><tr><th>得物</th><th>攻撃力</th><th>弾数</th><th>積</th><th>装填</th><th>持ち味</th></tr></thead>
+            <tbody id="wtable"></tbody>
+          </table></div>
+          <h3>瑛国戦列艦　一隻・沖およそ八十メートル</h3>
+          <div class="tbl"><table class="parts-tbl">
+            <thead><tr><th>部位</th><th>耐久</th><th>壊したときの結果</th></tr></thead>
+            <tbody id="ptable"></tbody>
+          </table></div>
+          <h3>勝敗</h3>
+          <p class="hint"><b>制限時間のうちに瑛兵を全員、倒すか海へ落とせば勝ち。</b>時間が尽きると瑛艦の砲門がすべて開き、反撃が始まる。弾薬を撃ち尽くしても負け。大砲の着弾は周りの瑛兵を吹き飛ばし、船体や帆に火を放つことがある。燃える甲板からは瑛兵が逃げ惑い、海へ飛び込む者も出る。</p>
+          <h3>流儀</h3>
+          <div class="modes" id="modes" role="radiogroup" aria-label="流儀"></div>
+          <h3>難易度</h3>
+          <div class="diffs" id="diffs" role="radiogroup" aria-label="難易度"></div>
+          <p class="hint">狙う：マウスを動かす（スマホは指でなぞる）。撃つ：クリック（指を離す）。弾は落ちるので、遠くほど上を狙う。<br>キー：1・2・3で持ち替え、スペースで発射、Zか右クリックで遠眼鏡。</p>
+          <p class="err" id="glErr" hidden>この端末では3D表示を始められませんでした。別のブラウザでお試しください。</p>
+          <div class="row"><button class="go" id="goBtn" type="button">出陣</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="result" class="overlay result" hidden>
+      <div class="sheet">
+        <div class="info">
+          <div>
+            <h2 id="resTitle">瑛艦、沈黙す</h2>
+            <span class="rank" id="resRank">天晴れ</span>
+          </div>
+          <p id="resText"></p>
+          <p class="unlock" id="unlockNote" hidden>薩魔ホグワーツモードが解放された。あらすじの画面の「流儀」から選べる。</p>
+          <dl class="stats" id="resStats"></dl>
+          <div class="row">
+            <button class="go" id="againBtn" type="button">再び出陣</button>
+            <button class="ghost" id="titleBtn" type="button" style="color:var(--sumi);border-color:rgba(29,26,23,.4)">あらすじへ</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="arms" id="arms"></div>
+  <p class="help">狙う：マウス／指　撃つ：クリック／指を離す　持ち替え：1・2・3　遠眼鏡：Z／右クリック</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+// ================= 調整用の定数 =================
+// 攻撃力 × 弾数 ＝ 600（攻撃力と手持ち弾数は反比例）。speed は初速(m/秒)、spread はばらつき(度)
+const WEAPONS = {
+  bow:    { name:'弓矢',   unit:'本', dmg:6,   ammo:100, reload:0.45, speed:48,  spread:0.55, note:'山なりに飛ぶ。瑛兵を一人ずつ。帆も破れる' },
+  gun:    { name:'火縄銃', unit:'発', dmg:25,  ammo:24,  reload:2.0,  speed:120, spread:0.3,  note:'まっすぐ飛ぶ。砲門を一発で潰す' },
+  cannon: { name:'大砲',   unit:'発', dmg:120, ammo:5,   reload:3.5,  speed:75,  spread:0.25, note:'帆柱を一撃。周りの瑛兵を吹き飛ばし、火を放つ' },
+};
+// 薩魔ホグワーツモード（難 HARD を制すると解放）。役割と「威力 × 回数 ＝ 600」は同じ
+const MAGIC = {
+  bow:    { name:'水の魔法',   unit:'発', dmg:6,   ammo:100, reload:0.45, speed:48,  spread:0.55, note:'水の弾が山なりに飛ぶ。当たった瑛兵は海へ押し流す' },
+  gun:    { name:'火の魔法',   unit:'発', dmg:25,  ammo:24,  reload:2.0,  speed:120, spread:0.3,  note:'火球がまっすぐ飛ぶ。帆に当たれば必ず燃え上がる' },
+  cannon: { name:'落雷の魔法', unit:'回', dmg:120, ammo:5,   reload:3.5,  speed:0,   spread:0,    note:'狙った所へ天から雷が落ちる（落ちるまで一拍ある）。周りの瑛兵を吹き飛ばし、火を放つ' },
+};
+const STRIKE_DELAY = 0.55;  // 落雷の詠唱から落ちるまでの秒数
+const ORDER = ['bow','gun','cannon'];
+// time:制限時間(秒)  crew:乗員  preview:弾道の目安を飛行のどこまで描くか(0〜1)  walk:瑛兵の歩く速さ
+const DIFFS = {
+  easy:   { label:'易', en:'EASY',   time:180, crew:24, preview:1.0,  marker:true,  walk:1.1, desc:'3分・瑛兵24人・弾道と着弾点をすべて表示' },
+  normal: { label:'並', en:'NORMAL', time:120, crew:30, preview:0.45, marker:false, walk:1.6, desc:'2分・瑛兵30人・弾道は途中まで' },
+  hard:   { label:'難', en:'HARD',   time:90,  crew:36, preview:0.18, marker:false, walk:2.2, desc:'1分半・瑛兵36人・弾道はわずか' },
+};
+const SECTIONS = { bow:{name:'船首',hp:150}, mid:{name:'中央',hp:200}, stern:{name:'船尾',hp:150} };
+const SINK_AT = 2;          // 船体の区画をいくつ砕けば沈むか
+const LOWER_MAST_HP = 100;  // 下檣（帆柱の根元側）
+const TOP_MAST_HP = 50;     // 上檣（帆柱の先端側）
+const SAIL_HP = 40;         // 帆1枚
+const PORT_HP = 25;         // 砲門1つ
+const SAIL_MULT = 0.5;      // 帆に当たったとき、帆柱に伝わる威力の倍率
+const BLAST_R = 4;          // 大砲の着弾で瑛兵が海へ吹き飛ぶ半径(m)
+const FIRE = { chance:0.6, dur:14, dps:4, sailDps:9, panicR:3.2, jumpRate:0.18 };
+const G = 9.8;
+// ================================================
+
+const $ = id => document.getElementById(id);
+const rand=(a,b)=>a+Math.random()*(b-a);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------- 流儀（通常／薩魔ホグワーツ） ----------
+let magicUnlocked=false, modeKey='normal', mode='normal';
+if(location.hash==='#hogwarts') magicUnlocked=true;   // 試し用の抜け道：リンクの末尾に #hogwarts を付けると解放
+try{ if(localStorage.getItem('satsuma-magic')==='1') magicUnlocked=true; const m=localStorage.getItem('satsuma-mode'); if(m==='magic'&&magicUnlocked) modeKey='magic'; }catch(e){}
+const WEP = () => mode==='magic' ? MAGIC : WEAPONS;
+function renderModes(){
+  $('modes').innerHTML = [['normal','通常','弓矢・火縄銃・大砲'],['magic','薩魔ホグワーツ', magicUnlocked?'水・火・落雷の魔法':'未解放：難 HARD を制すると選べる']].map(([k,l,d])=>{
+    const locked=k==='magic'&&!magicUnlocked;
+    return `<button type="button" class="diff mode" role="radio" aria-checked="${k===modeKey}" data-m="${k}"${locked?' disabled':''}><b>${l}</b><span>${d}</span></button>`;
+  }).join('');
+  $('magicNote').hidden = modeKey!=='magic';
+  renderWeaponTable();
+}
+function renderWeaponTable(){
+  const set = modeKey==='magic' ? MAGIC : WEAPONS;
+  $('wHead').textContent = modeKey==='magic' ? '術　威力 × 回数 ＝ 六百' : '得物　攻撃力 × 弾数 ＝ 六百';
+  $('wtable').innerHTML = ORDER.map(k=>{const w=set[k];
+    return `<tr><td>${w.name}</td><td>${w.dmg}</td><td>${w.ammo}${w.unit}</td><td class="prod">${w.dmg*w.ammo}</td><td>${w.reload}秒</td><td class="note">${w.note}</td></tr>`}).join('');
+}
+$('modes').addEventListener('click',e=>{const b=e.target.closest('.mode'); if(!b||b.disabled) return; modeKey=b.dataset.m; try{localStorage.setItem('satsuma-mode',modeKey);}catch(_){} renderModes(); mode=modeKey; renderArms(); applyMode(); });
+function unlockMagic(){
+  if(magicUnlocked) return false;
+  magicUnlocked=true; try{ localStorage.setItem('satsuma-magic','1'); }catch(e){}
+  return true;
+}
+$('ptable').innerHTML = [
+  ['船首・中央・船尾',`${SECTIONS.bow.hp}・${SECTIONS.mid.hp}・${SECTIONS.stern.hp}`,`砕くと火の手が上がり、その区画の瑛兵が海へ落ちる。二か所砕けば沈み、全員が海へ`],
+  ['下檣（帆柱の根元）',`${LOWER_MAST_HP}×3`,'帆柱ごと倒れ、檣上の瑛兵と根元の瑛兵が海へ'],
+  ['上檣（帆柱の先）',`${TOP_MAST_HP}×3`,'先だけ折れ、一番上の帆桁の瑛兵が海へ'],
+  ['帆',`${SAIL_HP}×8`,'破れる。帆に当たった弾は帆柱に半分の威力で伝わる'],
+  ['砲門',`${PORT_HP}×16`,'砲が沈黙し、そばの瑛兵が吹き飛ぶ。最後の斉射から外れる'],
+].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td class="note">${r[2]}</td></tr>`).join('');
+let diffKey='normal';
+try{ const s=localStorage.getItem('satsuma-diff'); if(DIFFS[s]) diffKey=s; }catch(e){}
+function renderDiffs(){
+  $('diffs').innerHTML = Object.keys(DIFFS).map(k=>{const d=DIFFS[k];
+    return `<button type="button" class="diff" role="radio" aria-checked="${k===diffKey}" data-d="${k}"><b>${d.label}<small>${d.en}</small></b><span>${d.desc}</span></button>`}).join('');
+}
+renderDiffs();
+$('diffs').addEventListener('click',e=>{const b=e.target.closest('.diff'); if(!b) return; diffKey=b.dataset.d; try{localStorage.setItem('satsuma-diff',diffKey);}catch(_){} renderDiffs();});
+
+// 紙の粒
+try{
+  const c=document.createElement('canvas'); c.width=c.height=160; const g=c.getContext('2d'); const im=g.createImageData(160,160);
+  for(let i=0;i<im.data.length;i+=4){ const v=110+Math.random()*120; im.data[i]=im.data[i+1]=im.data[i+2]=v; im.data[i+3]=255; }
+  g.putImageData(im,0,0); $('grain').style.backgroundImage=`url(${c.toDataURL()})`;
+}catch(e){}
+
+// ---------- 得物ボタン ----------
+const armsEl=$('arms');
+const armEls={}, ammoEls={}, lastUI={};
+function renderArms(){
+  const set=WEP(), magic=mode==='magic';
+  armsEl.innerHTML = ORDER.map((k,i)=>{const w=set[k];
+    return `<button type="button" class="arm" id="arm-${k}" data-w="${k}"><span class="k">${i+1}</span><span class="n">${w.name}</span><span class="a"><b id="ammo-${k}">${w.ammo}</b>${w.unit}</span><span class="s">${magic?'威力':'攻撃力'} ${w.dmg}・${magic?'詠唱':'装填'} ${w.reload}秒</span><i class="rl"></i></button>`}).join('')
+    + `<button type="button" class="scope" id="scopeBtn" aria-pressed="false"><b>遠眼鏡</b><span>Z</span></button>`;
+  ORDER.forEach(k=>{armEls[k]=$('arm-'+k); ammoEls[k]=$('ammo-'+k); delete lastUI[k];});
+}
+armsEl.addEventListener('click',e=>{ if(e.target.closest('.scope')){ setZoom(!zoom); return; } const b=e.target.closest('.arm'); if(b) select(b.dataset.w); });
+mode=modeKey; renderModes(); renderArms();
+
+// ---------- 音 ----------
+let actx=null, muted=false;
+function initAudio(){ if(actx) return; try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ actx=null; } }
+function noise(dur,freq,vol){
+  if(!actx||muted) return;
+  try{
+    const len=Math.floor(actx.sampleRate*dur), buf=actx.createBuffer(1,len,actx.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.2);
+    const src=actx.createBufferSource(); src.buffer=buf;
+    const f=actx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=freq;
+    const g=actx.createGain(); g.gain.value=vol;
+    src.connect(f); f.connect(g); g.connect(actx.destination); src.start();
+  }catch(e){}
+}
+function twang(){
+  if(!actx||muted) return;
+  try{
+    const o=actx.createOscillator(), g=actx.createGain(), n=actx.currentTime;
+    o.type='triangle'; o.frequency.setValueAtTime(330,n); o.frequency.exponentialRampToValueAtTime(140,n+.18);
+    g.gain.setValueAtTime(.18,n); g.gain.exponentialRampToValueAtTime(.001,n+.22);
+    o.connect(g); g.connect(actx.destination); o.start(n); o.stop(n+.25);
+  }catch(e){}
+}
+function creak(){ noise(1.2,300,.5); }
+function whoosh(hi){
+  if(!actx||muted) return;
+  try{
+    const len=Math.floor(actx.sampleRate*0.45), buf=actx.createBuffer(1,len,actx.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++){ const k=i/len; d[i]=(Math.random()*2-1)*Math.sin(Math.PI*k)*(1-k*0.5); }
+    const src=actx.createBufferSource(); src.buffer=buf;
+    const f=actx.createBiquadFilter(); f.type='bandpass'; f.Q.value=1.2; const n=actx.currentTime;
+    f.frequency.setValueAtTime(hi?600:1800,n); f.frequency.exponentialRampToValueAtTime(hi?2400:500,n+0.4);
+    const g=actx.createGain(); g.gain.value=0.35;
+    src.connect(f); f.connect(g); g.connect(actx.destination); src.start();
+  }catch(e){}
+}
+function thunder(){ noise(0.15,9000,0.55); setTimeout(()=>noise(2.4,170,1.0),90); setTimeout(()=>noise(1.6,90,0.8),450); }
+$('mute').addEventListener('click',e=>{muted=!muted; e.currentTarget.textContent=muted?'音：切':'音：入'; initAudio();});
+
+// ---------- 3D の準備 ----------
+const stage=$('stage'), cv=$('cv');
+let renderer=null;
+try{
+  if(!window.THREE) throw new Error('three');
+  renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+}catch(e){
+  $('glErr').hidden=false; $('goBtn').disabled=true; return;
+}
+const V3=THREE.Vector3;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();
+const FOG=0xd9a283, FOG_NEAR=260, FOG_FAR=2300;
+scene.fog=new THREE.Fog(FOG,FOG_NEAR,FOG_FAR);
+const camera=new THREE.PerspectiveCamera(45,16/9,0.1,7000);
+const CAM_BASE=new V3(2.6,6.6,6.5), CAM_LOOK=new V3(3,13.5,-78);
+camera.position.copy(CAM_BASE); camera.lookAt(CAM_LOOK);
+function resize(){
+  const r=stage.getBoundingClientRect();
+  if(!r.width||!r.height||cv.offsetParent===null) return;
+  renderer.setSize(r.width,r.height,false);
+  camera.aspect=r.width/r.height; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+
+const MAX_ANISO=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+const lam=(c,o)=>new THREE.MeshLambertMaterial(Object.assign({color:c},o||{}));
+const facet=(c,o)=>new THREE.MeshPhongMaterial(Object.assign({color:c,flatShading:true,shininess:0,specular:0x000000},o||{}));
+function canvasTex(w,h,draw,repeat){ const c=document.createElement('canvas'); c.width=w; c.height=h; draw(c.getContext('2d'),w,h); const t=new THREE.CanvasTexture(c); t.anisotropy=MAX_ANISO; if(repeat){ t.wrapS=t.wrapT=THREE.RepeatWrapping; } return t; }
+function speckle(g,w,h,n,rgb,amax,size){ for(let i=0;i<n;i++){ g.fillStyle=`rgba(${rgb},${Math.random()*amax})`; const s=size*rand(0.5,1.5); g.fillRect(Math.random()*w,Math.random()*h,s,s); } }
+
+// ---------- 模様（テクスチャ） ----------
+const dotTex=canvasTex(64,64,(g)=>{ const r=g.createRadialGradient(32,32,0,32,32,32); r.addColorStop(0,'rgba(255,255,255,1)'); r.addColorStop(.5,'rgba(255,255,255,.55)'); r.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=r; g.fillRect(0,0,64,64); });
+const discTex=canvasTex(128,128,(g)=>{ g.fillStyle='#fff'; g.beginPath(); g.arc(64,64,60,0,Math.PI*2); g.fill(); });
+const smokeTex=canvasTex(128,128,(g)=>{ for(let i=0;i<16;i++){ const x=64+rand(-24,24), y=64+rand(-24,24), r=rand(16,36); const gr=g.createRadialGradient(x,y,0,x,y,r); gr.addColorStop(0,'rgba(255,255,255,.34)'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(0,0,128,128);} });
+const fireTex=canvasTex(64,128,(g)=>{ const gr=g.createRadialGradient(32,96,2,32,84,46); gr.addColorStop(0,'rgba(255,250,215,1)'); gr.addColorStop(.3,'rgba(255,180,70,.95)'); gr.addColorStop(.65,'rgba(225,80,20,.55)'); gr.addColorStop(1,'rgba(120,20,0,0)'); g.fillStyle=gr; g.beginPath(); g.moveTo(32,2); g.quadraticCurveTo(64,70,50,112); g.quadraticCurveTo(32,128,14,112); g.quadraticCurveTo(0,70,32,2); g.fill(); });
+const holeTex=canvasTex(64,64,(g)=>{
+  const star=(r0,r1,col)=>{ g.fillStyle=col; g.beginPath(); for(let a=0;a<Math.PI*2;a+=0.35){ const r=rand(r0,r1); g.lineTo(32+Math.cos(a)*r,32+Math.sin(a)*r);} g.fill(); };
+  star(22,31,'rgba(196,158,104,.95)'); star(12,20,'#0b0806'); });
+const scorchTex=canvasTex(64,64,(g)=>{ const r=g.createRadialGradient(32,32,2,32,32,32); r.addColorStop(0,'rgba(10,6,4,.9)'); r.addColorStop(.6,'rgba(20,12,8,.5)'); r.addColorStop(1,'rgba(20,12,8,0)'); g.fillStyle=r; g.fillRect(0,0,64,64); });
+const KEEL=-3.2;
+const hullTex=canvasTex(1024,512,(g,w,h)=>{
+  const Y=y=>(1-(y-KEEL)/12.4)*h;
+  g.fillStyle='#211a15'; g.fillRect(0,0,w,h);
+  g.fillStyle='#6a7a60'; g.fillRect(0,Y(0.15),w,h-Y(0.15));                 // 銅張り（緑青）
+  for(let y=Y(0.15);y<h;y+=9) for(let x=(y/9%2)*14;x<w;x+=28){ g.strokeStyle='rgba(40,50,35,.35)'; g.strokeRect(x,y,28,9); }
+  speckle(g,w,h-Y(0.15),900,'150,110,60',.25,4);
+  g.fillStyle='#17120e'; g.fillRect(0,Y(2.15),w,Y(0.15)-Y(2.15));            // 黒い腰板
+  g.fillStyle='#c09550'; g.fillRect(0,Y(3.75),w,Y(2.35)-Y(3.75));            // 黄土の帯（下段砲列）
+  g.fillStyle='#1b1511'; g.fillRect(0,Y(4.7),w,Y(3.75)-Y(4.7));
+  g.fillStyle='#c09550'; g.fillRect(0,Y(6.05),w,Y(4.7)-Y(6.05));             // 黄土の帯（上段砲列）
+  g.fillStyle='#b88a45'; g.fillRect(0,Y(8.45),w,Y(8.2)-Y(8.45));             // 舷縁
+  g.fillStyle='#6d2a1e'; g.fillRect(0,0,w,Y(9.6));                           // 内舷（赤）
+  for(let y=Y(9.6);y<Y(0.15);y+=7){ g.fillStyle='rgba(0,0,0,.22)'; g.fillRect(0,y,w,1); }
+  for(let i=0;i<260;i++){ const y=rand(Y(9.6),Y(0.2)); g.fillStyle='rgba(0,0,0,.25)'; g.fillRect(rand(0,w),y,1,7); }
+  for(let i=0;i<120;i++){ g.fillStyle=`rgba(0,0,0,${rand(.03,.1)})`; g.fillRect(rand(0,w),rand(Y(7),Y(0.3)),rand(2,5),rand(20,70)); }
+  speckle(g,w,h,2400,'255,240,210',.05,3); speckle(g,w,h,2400,'0,0,0',.08,3);
+});
+const deckTex=canvasTex(512,256,(g,w,h)=>{
+  g.fillStyle='#9c8462'; g.fillRect(0,0,w,h);
+  for(let y=0;y<h;y+=16){ g.fillStyle=`rgba(${rand(80,120)|0},${rand(60,90)|0},40,.18)`; g.fillRect(0,y,w,16); g.fillStyle='rgba(40,28,18,.55)'; g.fillRect(0,y,w,1.5);
+    for(let x=rand(0,120);x<w;x+=rand(90,180)){ g.fillRect(x,y,1.5,16); } }
+  speckle(g,w,h,1600,'40,28,18',.12,2);
+},true);
+deckTex.repeat.set(1/7,1/3);
+function makeSailTex(torn){
+  return canvasTex(256,256,(g,w,h)=>{
+    g.fillStyle='#ece3c9'; g.fillRect(0,0,w,h);
+    for(let x=0;x<w;x+=18){ g.fillStyle='rgba(120,100,70,.12)'; g.fillRect(x,0,2,h); }
+    g.fillStyle='rgba(120,100,70,.2)'; for(const y of [34,62]) g.fillRect(0,y,w,3);
+    for(const y of [34,62]) for(let x=6;x<w;x+=14){ g.fillStyle='rgba(80,64,44,.4)'; g.fillRect(x,y-3,1.5,9); }
+    const gr=g.createLinearGradient(0,0,0,h); gr.addColorStop(0,'rgba(90,70,50,0)'); gr.addColorStop(1,'rgba(90,70,50,.22)'); g.fillStyle=gr; g.fillRect(0,0,w,h);
+    speckle(g,w,h,1400,'80,60,40',.07,2);
+    g.strokeStyle='rgba(70,55,40,.55)'; g.lineWidth=5; g.strokeRect(2,2,w-4,h-4);
+    if(torn){
+      g.globalCompositeOperation='destination-out';
+      for(let i=0;i<8;i++){ g.beginPath(); const cx=rand(30,226), cy=rand(40,230), r=rand(14,40); for(let a=0;a<Math.PI*2;a+=0.45){ const rr=r*rand(0.4,1.25); g.lineTo(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr);} g.fill(); }
+      g.beginPath(); g.moveTo(0,h); g.lineTo(w*0.18,h*0.5); g.lineTo(w*0.35,h*0.78); g.lineTo(w*0.52,h*0.36); g.lineTo(w*0.7,h*0.7); g.lineTo(w*0.86,h*0.45); g.lineTo(w,h); g.fill();
+      g.globalCompositeOperation='source-over';
+    }
+  });
+}
+const sailTex=makeSailTex(false), sailTornTex=makeSailTex(true);
+const unionTex=canvasTex(120,72,(g,w,h)=>{ g.fillStyle='#1f2f6e'; g.fillRect(0,0,w,h); g.strokeStyle='#f3efe6'; g.lineWidth=14; g.beginPath(); g.moveTo(0,0); g.lineTo(w,h); g.moveTo(w,0); g.lineTo(0,h); g.stroke();
+  g.strokeStyle='#c8222c'; g.lineWidth=5; g.stroke(); g.fillStyle='#f3efe6'; g.fillRect(w/2-12,0,24,h); g.fillRect(0,h/2-12,w,24); g.fillStyle='#c8222c'; g.fillRect(w/2-7,0,14,h); g.fillRect(0,h/2-7,w,14); });
+const ensignTex=canvasTex(240,144,(g,w,h)=>{ g.fillStyle='#f2eee4'; g.fillRect(0,0,w,h); g.fillStyle='#c8222c'; g.fillRect(w*0.62-9,0,18,h); g.fillRect(0,h/2-9,w,18); g.drawImage(unionTex.image,0,0,w*0.42,h*0.5); });
+const noboriTex=canvasTex(128,420,(g,w,h)=>{ g.fillStyle='#ece2cc'; g.fillRect(0,0,w,h); speckle(g,w,h,500,'120,100,70',.08,3); g.strokeStyle='#1d1a17'; g.lineWidth=9; g.beginPath(); g.arc(64,86,42,0,Math.PI*2); g.stroke();
+  g.beginPath(); g.moveTo(22,86); g.lineTo(106,86); g.moveTo(64,44); g.lineTo(64,128); g.stroke(); g.fillStyle='rgba(29,26,23,.8)'; g.fillRect(0,h-10,w,10); });
+const crestTex=canvasTex(128,128,(g)=>{ g.fillStyle='#3a4458'; g.fillRect(0,0,128,128); g.fillStyle='#e8e0cc'; g.beginPath(); g.arc(64,64,40,0,Math.PI*2); g.fill(); g.strokeStyle='#3a4458'; g.lineWidth=8; g.beginPath(); g.arc(64,64,30,0,Math.PI*2); g.stroke(); g.beginPath(); g.moveTo(34,64); g.lineTo(94,64); g.moveTo(64,34); g.lineTo(64,94); g.stroke(); });
+const hakamaTex=canvasTex(128,128,(g,w,h)=>{ g.fillStyle='#232f52'; g.fillRect(0,0,w,h); for(let x=0;x<w;x+=6){ g.fillStyle=x%12?'rgba(200,210,230,.13)':'rgba(0,0,0,.25)'; g.fillRect(x,0,2,h);} });
+const bandTex=canvasTex(512,64,(g,w,h)=>{ g.fillStyle='rgba(236,226,204,.92)'; const r=h*0.38; g.beginPath(); g.moveTo(r,8); g.lineTo(w-r,8); g.arc(w-r,8+r,r,-Math.PI/2,Math.PI/2); g.lineTo(r,8+2*r); g.arc(r,8+r,r,Math.PI/2,Math.PI*1.5); g.fill();
+  g.strokeStyle='rgba(120,90,90,.45)'; g.lineWidth=2; g.beginPath(); g.moveTo(r,8+r*1.3); g.lineTo(w-r,8+r*1.3); g.stroke(); });
+function ridgeTex(col,seed,peaks,rough){ return canvasTex(1024,256,(g,w,h)=>{ g.fillStyle=col; g.beginPath(); g.moveTo(0,h);
+  for(let x=0;x<=w;x+=4){ const y=h*(0.62-0.4*Math.abs(Math.sin(x*0.0035*peaks+seed))*(0.55+0.45*Math.sin(x*0.011+seed*2)))+Math.sin(x*0.09+seed)*rough+Math.sin(x*0.23)*rough*0.4; g.lineTo(x,y);} g.lineTo(w,h); g.fill(); }); }
+
+// ---------- 光 ----------
+scene.add(new THREE.HemisphereLight(0x8d96c4,0x4a3a2a,0.72));
+const keyL=new THREE.DirectionalLight(0xffc9a0,0.95); scene.add(keyL); scene.add(keyL.target);
+const rimL=new THREE.DirectionalLight(0xff8a5a,0.45); rimL.position.set(600,80,-1500); scene.add(rimL);
+const SHIP_POS=new V3(4,0,-78), SHIP_YAW=0.42;
+keyL.target.position.copy(SHIP_POS); keyL.position.copy(SHIP_POS).add(new V3(110,150,190));
+keyL.castShadow=true; keyL.shadow.mapSize.set(2048,2048);
+Object.assign(keyL.shadow.camera,{left:-48,right:48,top:58,bottom:-22,near:40,far:520}); keyL.shadow.bias=-0.0006; keyL.shadow.normalBias=0.04;
+// 砲火の閃光
+const flashLights=[0,1,2].map(()=>{ const l=new THREE.PointLight(0xffa860,0,60,2); scene.add(l); return {l,v:0}; });
+let flIdx=0;
+function lightFlash(pos,strength){ const f=flashLights[flIdx]; flIdx=(flIdx+1)%flashLights.length; f.l.position.copy(pos); f.v=strength; }
+
+// ---------- 空・遠景 ----------
+const SUN_POS=new V3(760,120,-2000), SUN_DIR=SUN_POS.clone().normalize();
+const sky=new THREE.Mesh(new THREE.SphereGeometry(3000,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,
+  uniforms:{top:{value:new THREE.Color('#1c2a4a')},mid:{value:new THREE.Color('#6b5f7e')},bot:{value:new THREE.Color('#e3ad84')},sunDir:{value:SUN_DIR},sunCol:{value:new THREE.Color('#ffb57a')}},
+  vertexShader:'varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader:`uniform vec3 top; uniform vec3 mid; uniform vec3 bot; uniform vec3 sunDir; uniform vec3 sunCol; varying vec3 vP;
+    void main(){ vec3 d=normalize(vP); float h=d.y;
+      vec3 c = h>0.12 ? mix(mid,top,smoothstep(0.12,0.62,h)) : mix(bot,mid,smoothstep(-0.02,0.12,h));
+      float s=max(dot(d,sunDir),0.0);
+      c+=sunCol*(pow(s,10.0)*0.28+pow(s,80.0)*0.35);
+      c=mix(c,bot*1.04,exp(-abs(h-0.01)*38.0)*0.35);
+      gl_FragColor=vec4(c,1.0); }`}));
+sky.renderOrder=-10; scene.add(sky);
+const sunGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,color:0xffa070,transparent:true,opacity:.5,fog:false,depthWrite:false}));
+sunGlow.position.copy(SUN_POS); sunGlow.scale.set(540,540,1); scene.add(sunGlow);
+const sun=new THREE.Sprite(new THREE.SpriteMaterial({map:discTex,color:0xd9502f,transparent:true,fog:false,depthWrite:false}));
+sun.position.copy(SUN_POS); sun.scale.set(150,150,1); scene.add(sun);
+const clouds=[];
+for(const [x,y,z,w] of [[-900,380,-1900,900],[200,300,-2000,700],[900,480,-1900,1000],[-300,180,-2050,520],[1300,260,-1800,600],[-1300,230,-1850,560]]){
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:bandTex,transparent:true,fog:false,depthWrite:false}));
+  s.position.set(x,y,z); s.scale.set(w,w/8,1); scene.add(s); clouds.push({s,x0:x});
+}
+// 重なる山並み（遠いほど霞む）
+for(const [x,z,w,h,col,seed,pk,rough] of [[0,-2400,6200,380,'#c9a38e',1.3,3,4],[1100,-1900,2600,210,'#9e8591',4.2,4,3],[-1300,-1700,2200,150,'#8a7788',2.1,5,2]]){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:ridgeTex(col,seed,pk,rough),alphaTest:0.5,fog:false}));
+  m.position.set(x,h*0.5-24,z); scene.add(m);
+}
+// 桜島
+const volPts=[[300,0],[250,40],[180,95],[110,150],[62,188],[40,200],[26,204],[14,198],[0,198]].map(p=>new THREE.Vector2(p[0],p[1]));
+const volcano=new THREE.Mesh(new THREE.LatheGeometry(volPts,14),facet(0x5a5572));
+volcano.position.set(-650,-4,-1350); volcano.scale.set(1,1,0.8); scene.add(volcano);
+const plume=[];
+for(let i=0;i<14;i++){ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:smokeTex,color:0x75707f,transparent:true,depthWrite:false})); scene.add(s); plume.push({s,k:i/14}); }
+// 海面の靄
+for(let i=0;i<7;i++){ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,color:0xe7b996,transparent:true,opacity:.22,depthWrite:false,fog:false})); s.position.set(rand(-900,900),14,rand(-1100,-700)); s.scale.set(rand(500,900),40,1); scene.add(s); }
+// 鴎
+const gulls=[];
+{ const wingGeo=new THREE.BufferGeometry().setFromPoints([new V3(0,0,0),new V3(1.2,0.1,0.25),new V3(0,0,0.5)]); wingGeo.computeVertexNormals();
+  const gm=lam(0xf2ede4,{side:THREE.DoubleSide});
+  for(let i=0;i<6;i++){ const g=new THREE.Group(); const l=new THREE.Mesh(wingGeo,gm), r=new THREE.Mesh(wingGeo,gm); r.scale.x=-1; g.add(l,r); g.scale.setScalar(1.6); scene.add(g);
+    gulls.push({g,l,r,cx:rand(-60,80),cy:rand(28,55),cz:rand(-140,-60),rad:rand(18,40),sp:rand(0.12,0.25)*(Math.random()<.5?-1:1),ph:rand(0,6)}); } }
+
+// ---------- 海（シェーダー） ----------
+const GLSL_WAVE='float wv(vec2 p){ return sin(p.x*0.07+uTime*1.1)*0.26+sin(p.y*0.23+uTime*0.9+p.x*0.05)*0.13+sin((p.x-p.y)*0.025+uTime*0.45)*0.32; }';
+function waveY(x,z){ return Math.sin(x*0.07+t*1.1)*0.26+Math.sin(z*0.23+t*0.9+x*0.05)*0.13+Math.sin((x-z)*0.025+t*0.45)*0.32; }
+const waterMat=new THREE.ShaderMaterial({
+  uniforms:{uTime:{value:0},uDeep:{value:new THREE.Color(0x0c2040)},uShallow:{value:new THREE.Color(0x2a5680)},uSkyLo:{value:new THREE.Color(0xe6b089)},uSkyHi:{value:new THREE.Color(0x4b4a70)},
+    uSunDir:{value:SUN_DIR},uSunCol:{value:new THREE.Color(0xffb070)},uFog:{value:new THREE.Color(FOG)},uFogNear:{value:FOG_NEAR},uFogFar:{value:FOG_FAR}},
+  vertexShader:`uniform float uTime; varying vec3 vW; ${GLSL_WAVE}
+    void main(){ vec4 w=modelMatrix*vec4(position,1.0); w.y=wv(w.xz); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
+  fragmentShader:`uniform float uTime; uniform vec3 uDeep,uShallow,uSkyLo,uSkyHi,uSunDir,uSunCol,uFog; uniform float uFogNear,uFogFar; varying vec3 vW;
+    void main(){
+      vec2 p=vW.xz; float t=uTime;
+      float a=p.x*0.07+t*1.1, b=p.y*0.23+t*0.9+p.x*0.05, c=(p.x-p.y)*0.025+t*0.45;
+      float dx=cos(a)*0.0182+cos(b)*0.0065+cos(c)*0.008;
+      float dz=cos(b)*0.0299-cos(c)*0.008;
+      float dist=length(cameraPosition-vW);
+      float det=1.0-smoothstep(50.0,900.0,dist);
+      vec2 d1=vec2(0.8,0.6), d2=vec2(-0.5,0.85), d3=vec2(0.95,-0.3), d4=vec2(0.2,-0.98), d5=vec2(-0.9,-0.4);
+      float f1=dot(p,d1)*0.9+t*2.1, f2=dot(p,d2)*1.4+t*2.6, f3=dot(p,d3)*2.2+t*3.3, f4=dot(p,d4)*3.3+t*3.9, f5=dot(p,d5)*5.1+t*4.8;
+      vec2 r=d1*cos(f1)*0.045+d2*cos(f2)*0.045+d3*cos(f3)*0.04+d4*cos(f4)*0.036+d5*cos(f5)*0.03;
+      dx+=r.x*det; dz+=r.y*det;
+      vec3 n=normalize(vec3(-dx,1.0,-dz));
+      vec3 v=normalize(cameraPosition-vW);
+      float ndv=max(dot(n,v),0.0);
+      float fr=0.03+0.97*pow(1.0-ndv,5.0);
+      vec3 rf=reflect(-v,n);
+      vec3 skyc=mix(uSkyLo,uSkyHi,clamp(rf.y*2.2,0.0,1.0));
+      float h=sin(a)*0.26+sin(b)*0.13+sin(c)*0.32;
+      vec3 water=mix(uDeep,uShallow,clamp(0.45+h*0.7,0.0,1.0)*0.55+0.25*(1.0-ndv));
+      vec3 col=mix(water,skyc,clamp(fr*0.9,0.0,1.0));
+      float sd=max(dot(rf,uSunDir),0.0);
+      col+=uSunCol*(pow(sd,350.0)*2.6+pow(sd,36.0)*0.32);
+      float crest=smoothstep(0.5,0.66,h)*0.16*det;
+      float shore=smoothstep(-12.0,-6.3,p.y)*(0.55+0.45*sin(p.x*0.9+t*1.7+sin(p.x*0.3)*2.0));
+      col=mix(col,vec3(0.93,0.92,0.88),clamp(crest+shore*0.75,0.0,0.9));
+      col=mix(col,uFog,smoothstep(uFogNear,uFogFar,dist));
+      gl_FragColor=vec4(col,1.0);
+    }`
+});
+{ // 手前ほど細かい格子
+  const N=300, R=3400, pos=new Float32Array((N+1)*(N+1)*3), idx=new Uint32Array(N*N*6);
+  let k=0; for(let j=0;j<=N;j++) for(let i=0;i<=N;i++){ const u=i/N*2-1, v=j/N*2-1; pos[k++]=u*Math.abs(u)*R; pos[k++]=0; pos[k++]=6+v*Math.abs(v)*R; }
+  k=0; for(let j=0;j<N;j++) for(let i=0;i<N;i++){ const a=j*(N+1)+i, b=a+1, c=a+N+1, d=c+1; idx[k++]=a; idx[k++]=c; idx[k++]=b; idx[k++]=b; idx[k++]=c; idx[k++]=d; }
+  const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.BufferAttribute(pos,3)); geo.setIndex(new THREE.BufferAttribute(idx,1));
+  const sea=new THREE.Mesh(geo,waterMat); sea.frustumCulled=false; scene.add(sea);
+}
+
+// ---------- 浜・崖・小道具 ----------
+const grass=lam(0x4d5530), rock=facet(0x3d3428);
+const land=new THREE.Mesh(new THREE.BoxGeometry(160,8,50),[rock,rock,grass,rock,rock,rock]);
+land.position.set(0,-1,19); scene.add(land);   // 上面 y=3、海側の縁 z=-6
+const rockGeo=new THREE.DodecahedronGeometry(1,0);
+for(let i=0;i<22;i++){ const r=new THREE.Mesh(rockGeo,rock); const s=rand(0.8,2.4); r.scale.set(s,s*rand(0.6,1),s); r.position.set(rand(-45,45),rand(-0.6,1.2),rand(-9,-6)); r.rotation.set(rand(0,3),rand(0,3),0); scene.add(r); }
+{ // 草むら
+  const tuft=new THREE.ConeGeometry(0.07,0.42,4); tuft.translate(0,0.21,0);
+  const inst=new THREE.InstancedMesh(tuft,lam(0xffffff),160); const m=new THREE.Matrix4(), col=new THREE.Color();
+  for(let i=0;i<160;i++){ let x,z; do{ x=rand(-22,22); z=rand(-6,-1.8); }while(Math.abs(x-1.3)<1.4&&Math.abs(z+0.9)<1.4 || Math.abs(x+1.6)<2&&Math.abs(z+1.2)<2);
+    m.makeRotationFromEuler(new THREE.Euler(rand(-.3,.3),rand(0,3),rand(-.3,.3))); m.scale(new V3(1,rand(0.6,1.6),1)); m.setPosition(x,3,z); inst.setMatrixAt(i,m);
+    col.setHSL(rand(0.14,0.2),rand(0.3,0.45),rand(0.28,0.42)); inst.setColorAt(i,col); }
+  scene.add(inst);
+}
+// 松
+const pine=new THREE.Group(); pine.position.set(-13,3,-8); scene.add(pine);
+const bark=facet(0x2c2016), needle=facet(0x1f3527);
+const tr1=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.45,5,7),bark); tr1.position.set(0,2.4,0); tr1.rotation.z=0.18; pine.add(tr1);
+const tr2=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.28,4,7),bark); tr2.position.set(0.7,6,0); tr2.rotation.z=-0.35; pine.add(tr2);
+const tr3=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.16,3.2,6),bark); tr3.position.set(2.2,6.6,0); tr3.rotation.z=-1.1; pine.add(tr3);
+for(const [x,y,z,s] of [[1.2,8.2,0,3.2],[-1.4,6.4,0.5,2.6],[3.6,7.4,-0.4,2.6],[0.2,9.4,-0.3,2.2],[-2.6,5.2,-0.2,2],[2.2,9.2,0.6,1.8]]){ const m=new THREE.Mesh(new THREE.SphereGeometry(1,9,6),needle); m.scale.set(s,s*0.3,s*0.9); m.position.set(x,y,z); pine.add(m); }
+// 幟（丸に十字）
+const nobori=new THREE.Group(); nobori.position.set(10.5,3,-6); scene.add(nobori);
+const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,7,6),bark); pole.position.y=3.5; nobori.add(pole);
+const noboriBar=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1.3,6),bark); noboriBar.rotation.z=Math.PI/2; noboriBar.position.set(0.62,6.7,0); nobori.add(noboriBar);
+const noboriGeo=new THREE.PlaneGeometry(1.1,3.6,4,10), noboriBase=Float32Array.from(noboriGeo.attributes.position.array);
+const flag=new THREE.Mesh(noboriGeo,new THREE.MeshLambertMaterial({map:noboriTex,side:THREE.DoubleSide})); flag.position.set(0.62,4.85,0); nobori.add(flag);
+// 石灯籠
+const toro=new THREE.Group(); toro.position.set(5.4,3,1.2); scene.add(toro);
+const stone=facet(0x8a8474);
+[[0.34,0.42,0.3,0.15],[0.14,0.16,0.9,0.75],[0.42,0.36,0.14,1.27],[0.3,0.3,0.42,1.55],[0.08,0.62,0.34,1.93],[0.08,0.08,0.18,2.19]].forEach(([rt,rb,h,y],i)=>{ const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,6),stone); m.position.y=y; toro.add(m); });
+const toroLight=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,color:0xffb060,transparent:true,opacity:.8,blending:THREE.AdditiveBlending,depthWrite:false})); toroLight.position.y=1.55; toroLight.scale.set(1.1,1.1,1); toro.add(toroLight);
+// 弾薬：砲弾の山（大砲の残弾と同じ数）と火薬樽
+const ballPile=[];
+{ const bm=facet(0x1c1a18,{shininess:30,specular:0x333333}); const bg=new THREE.SphereGeometry(0.2,10,8);
+  [[-0.21,0.2,-0.21],[0.21,0.2,-0.21],[-0.21,0.2,0.21],[0.21,0.2,0.21],[0,0.49,0]].forEach(p=>{ const b=new THREE.Mesh(bg,bm); b.position.set(-2.4+p[0],3+p[1],-2.6+p[2]); scene.add(b); ballPile.push(b); }); }
+const keg=new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.34,0.8,12),facet(0x6b4a2c)); keg.position.set(-3.2,3.4,-1.4); scene.add(keg);
+for(const y of [-0.28,0.28]){ const band=new THREE.Mesh(new THREE.TorusGeometry(0.345,0.025,4,16),facet(0x2a2622)); band.rotation.x=Math.PI/2; band.position.y=y; keg.add(band); }
+
+// ---------- 藩士と大砲 ----------
+const SAM_POS=new V3(1.3,3,-0.9), SHOULDER=new V3(1.45,4.6,-1.0), CANNON_PIVOT=new V3(-1.6,3.9,-1.2);
+const samurai=new THREE.Group(); samurai.position.copy(SAM_POS); scene.add(samurai);
+const hakama=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.54,1.05,12),new THREE.MeshLambertMaterial({map:hakamaTex})); hakama.position.y=0.52; samurai.add(hakama);
+const torso=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.76,0.4),lam(0x2e2823)); torso.position.y=1.38; samurai.add(torso);
+const obi=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.12,0.42),lam(0x6f2a20)); obi.position.y=1.03; samurai.add(obi);
+// 肩衣（背に丸に十字）
+const kataShape=new THREE.Shape(); kataShape.moveTo(-0.62,0.42); kataShape.lineTo(0.62,0.42); kataShape.lineTo(0.3,0); kataShape.lineTo(0.26,-0.36); kataShape.lineTo(-0.26,-0.36); kataShape.lineTo(-0.3,0); kataShape.closePath();
+const kata=new THREE.Mesh(new THREE.ExtrudeGeometry(kataShape,{depth:0.05,bevelEnabled:false}),lam(0x3a4458)); kata.position.set(0,1.36,0.2); samurai.add(kata);
+const kataF=kata.clone(); kataF.position.z=-0.25; samurai.add(kataF);
+const mon=new THREE.Mesh(new THREE.CircleGeometry(0.15,20),new THREE.MeshLambertMaterial({map:crestTex})); mon.position.set(0,1.52,0.26); samurai.add(mon);
+const head=new THREE.Mesh(new THREE.SphereGeometry(0.17,12,10),lam(0xd8b48a)); head.position.y=1.94; samurai.add(head);
+const hair=new THREE.Mesh(new THREE.SphereGeometry(0.175,12,10,0,Math.PI*2,0,Math.PI*0.55),lam(0x151210)); hair.position.y=1.95; hair.rotation.x=0.5; samurai.add(hair);
+const hat=new THREE.Mesh(new THREE.ConeGeometry(0.46,0.2,18),facet(0x151210,{shininess:40,specular:0x444444})); hat.position.y=2.15; samurai.add(hat);
+const hatDot=new THREE.Mesh(new THREE.SphereGeometry(0.05,6,4),lam(0xb8372a)); hatDot.position.y=2.26; samurai.add(hatDot);
+const katana=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.05,1.1),lam(0x111111)); katana.position.set(-0.34,1.02,0.1); katana.rotation.set(0.35,0.25,0); samurai.add(katana);
+const tsuka=new THREE.Mesh(new THREE.BoxGeometry(0.055,0.055,0.28),lam(0xd9d2c0)); tsuka.position.set(-0.28,1.1,-0.42); tsuka.rotation.set(0.35,0.25,0); samurai.add(tsuka);
+const waki=new THREE.Mesh(new THREE.BoxGeometry(0.045,0.045,0.7),lam(0x111111)); waki.position.set(-0.3,1.06,0.05); waki.rotation.set(0.2,0.3,0); samurai.add(waki);
+const arms=new THREE.Group(); arms.position.copy(SHOULDER); scene.add(arms);   // +z が狙う向き
+const sleeve=lam(0x2e2823), skin=lam(0xd8b48a);
+const armMesh=new THREE.Mesh(new THREE.BoxGeometry(0.17,0.17,0.62),sleeve); armMesh.position.z=0.3; arms.add(armMesh);
+const hand=new THREE.Mesh(new THREE.SphereGeometry(0.07,6,5),skin); hand.position.z=0.64; arms.add(hand);
+const armBack=new THREE.Mesh(new THREE.BoxGeometry(0.17,0.17,0.5),sleeve); armBack.position.set(-0.28,-0.02,0.06); armBack.rotation.y=0.9; arms.add(armBack);
+// 和弓
+const bowG=new THREE.Group(); arms.add(bowG);
+const BOW_R=1.25, BOW_ARC=Math.PI*0.62;
+const bowGeo=new THREE.TorusGeometry(BOW_R,0.035,5,24,BOW_ARC); bowGeo.rotateZ(-BOW_ARC/2);
+const bowMesh=new THREE.Mesh(bowGeo,lam(0x6b3b1f)); bowMesh.rotation.y=-Math.PI/2; bowMesh.position.set(0,0.3,0.62-BOW_R); bowG.add(bowMesh);
+const tipA=new V3(0,0.3+BOW_R*Math.sin(BOW_ARC/2),0.62-BOW_R+BOW_R*Math.cos(BOW_ARC/2)), tipB=new V3(0,0.3-BOW_R*Math.sin(BOW_ARC/2),tipA.z);
+const strGeo=new THREE.BufferGeometry().setFromPoints([tipA,new V3(0,0,0),tipB]);
+bowG.add(new THREE.Line(strGeo,new THREE.LineBasicMaterial({color:0xe8e0cc})));
+const nocked=new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,1.1,4).rotateX(Math.PI/2),lam(0xe8dcc0)); nocked.position.z=0.45; bowG.add(nocked);
+// 火縄銃
+const gunG=new THREE.Group(); arms.add(gunG);
+const barrelG=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,1.5),lam(0x26221f)); barrelG.position.z=0.95; gunG.add(barrelG);
+const stock=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.14,0.7),lam(0x4a2f1c)); stock.position.z=0.2; gunG.add(stock);
+const match=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,color:0xff9040,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false})); match.position.set(0.08,0.06,0.35); match.scale.set(0.12,0.12,1); gunG.add(match);
+// 大砲
+const cannonBase=new THREE.Group(); cannonBase.position.set(CANNON_PIVOT.x,3,CANNON_PIVOT.z); scene.add(cannonBase);
+const carriage=new THREE.Mesh(new THREE.BoxGeometry(1.1,0.55,1.9),facet(0x5b3f28)); carriage.position.y=0.45; cannonBase.add(carriage);
+for(const [x,z] of [[-0.62,-0.6],[0.62,-0.6],[-0.62,0.6],[0.62,0.6]]){ const wh=new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.34,0.12,12).rotateZ(Math.PI/2),facet(0x2a1d14)); wh.position.set(x,0.34,z); cannonBase.add(wh); }
+const cannonPivot=new THREE.Group(); cannonPivot.position.copy(CANNON_PIVOT); scene.add(cannonPivot);
+const bronze=new THREE.MeshPhongMaterial({color:0x4a4232,shininess:40,specular:0x6a5a3a});
+const cBarrel=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.28,2.5,16).rotateX(Math.PI/2),bronze); cBarrel.position.z=0.8; cannonPivot.add(cBarrel);
+for(const z of [0.0,1.1,1.95]){ const cr=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.25,0.14,16).rotateX(Math.PI/2),bronze); cr.position.z=z; cannonPivot.add(cr); }
+const linstock=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,color:0xff9040,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+linstock.scale.set(0.2,0.2,1); linstock.position.set(-0.55,4.05,-1.3); scene.add(linstock);
+
+// ---------- 薩魔ホグワーツの小道具 ----------
+const SPELL_COL={bow:0x7fc8ff, gun:0xff9a40, cannon:0xe6e0ff};
+const wandG=new THREE.Group(); arms.add(wandG);
+{ const w=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.024,0.5,6).rotateX(Math.PI/2),lam(0x3b2616)); w.position.z=0.9; wandG.add(w); }
+const wandTip=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,color:0x7fc8ff,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+wandTip.position.z=1.16; wandTip.scale.set(0.35,0.35,1); wandG.add(wandTip);
+const WAND_TIP_L=1.16;
+// 三角帽（背に丸に十字）と外套
+const wizHat=new THREE.Group(); wizHat.position.y=2.04; samurai.add(wizHat);
+const hatMat=facet(0x1f1b3d,{shininess:10});
+{ const brim=new THREE.Mesh(new THREE.CylinderGeometry(0.52,0.52,0.03,24),hatMat); wizHat.add(brim);
+  const cone=new THREE.Mesh(new THREE.ConeGeometry(0.26,0.95,18),hatMat); cone.position.set(0.03,0.48,0); cone.rotation.z=-0.1; wizHat.add(cone);
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(0.09,0.3,10),hatMat); tip.position.set(0.16,1.0,0); tip.rotation.z=-0.7; wizHat.add(tip);
+  const band=new THREE.Mesh(new THREE.TorusGeometry(0.255,0.028,6,24),lam(0xc9a24a)); band.rotation.x=Math.PI/2; band.position.y=0.08; wizHat.add(band);
+  const hc=new THREE.Mesh(new THREE.CircleGeometry(0.09,16),new THREE.MeshLambertMaterial({map:crestTex})); hc.position.set(0,0.3,0.205); hc.rotation.x=-0.26; wizHat.add(hc); }
+const capeShape=new THREE.Shape(); capeShape.moveTo(-0.36,0); capeShape.lineTo(0.36,0); capeShape.lineTo(0.62,-1.45); capeShape.quadraticCurveTo(0,-1.58,-0.62,-1.45); capeShape.closePath();
+const cape=new THREE.Mesh(new THREE.ExtrudeGeometry(capeShape,{depth:0.04,bevelEnabled:false}),lam(0x2a1f4a,{side:THREE.DoubleSide})); cape.position.set(0,1.76,0.24); cape.rotation.x=0.12; samurai.add(cape);
+const capeMon=new THREE.Mesh(new THREE.CircleGeometry(0.2,24),new THREE.MeshLambertMaterial({map:crestTex})); capeMon.position.set(0,1.28,0.36); capeMon.rotation.x=0.12; samurai.add(capeMon);
+// 魔法陣（大砲の代わりに据える）
+const circleTex=canvasTex(512,512,(g,w)=>{
+  const c=w/2; g.strokeStyle='#fff'; g.fillStyle='#fff';
+  g.lineWidth=6; g.beginPath(); g.arc(c,c,240,0,Math.PI*2); g.stroke();
+  g.lineWidth=3; g.beginPath(); g.arc(c,c,205,0,Math.PI*2); g.stroke();
+  g.beginPath(); g.arc(c,c,120,0,Math.PI*2); g.stroke();
+  g.lineWidth=4; g.beginPath(); for(let i=0;i<=5;i++){ const a=-Math.PI/2+i*Math.PI*4/5; const x=c+Math.cos(a)*200, y=c+Math.sin(a)*200; i?g.lineTo(x,y):g.moveTo(x,y); } g.stroke();
+  for(let i=0;i<60;i++){ const a=i/60*Math.PI*2; g.lineWidth=i%5?1.5:4; g.beginPath(); g.moveTo(c+Math.cos(a)*208,c+Math.sin(a)*208); g.lineTo(c+Math.cos(a)*(i%5?220:232),c+Math.sin(a)*(i%5?220:232)); g.stroke(); }
+  g.font='bold 34px "Shippori Mincho B1",serif'; g.textAlign='center'; g.textBaseline='middle';
+  ['水','火','雷','薩','魔'].forEach((ch,i)=>{ const a=-Math.PI/2+i*Math.PI*2/5; g.save(); g.translate(c+Math.cos(a)*160,c+Math.sin(a)*160); g.rotate(a+Math.PI/2); g.fillText(ch,0,0); g.restore(); });
+  g.lineWidth=3; g.beginPath(); g.arc(c,c,40,0,Math.PI*2); g.stroke(); g.beginPath(); g.moveTo(c-40,c); g.lineTo(c+40,c); g.moveTo(c,c-40); g.lineTo(c,c+40); g.stroke();
+});
+const magicCircle=new THREE.Mesh(new THREE.PlaneGeometry(3.4,3.4),new THREE.MeshBasicMaterial({map:circleTex,color:0x9fc4ff,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false}));
+const circleG=new THREE.Group(); circleG.position.set(-3.2,4.5,-4.2); circleG.rotation.set(-0.6,0.45,0); scene.add(circleG);
+circleG.add(magicCircle);
+const orbs=[0,1,2,3,4].map(i=>{ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,color:0xdcd2ff,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false})); s.scale.set(0.5,0.5,1); circleG.add(s); return s; });
+// 漂う光の粒
+const motes=[];
+for(let i=0;i<60;i++){ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,color:[0xbfd8ff,0xffd8a0,0xe0d0ff][i%3],transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+  const m={s,x:rand(-30,34),y:rand(3.5,22),z:rand(-60,-4),ph:rand(0,6),sp:rand(0.2,0.6)}; s.scale.set(0.3,0.3,1); scene.add(s); motes.push(m); }
+const normalOnly=[cannonBase,cannonPivot,linstock,keg,...ballPile], magicOnly=[wizHat,cape,capeMon,circleG];
+const SKY_PAL={normal:['#1c2a4a','#6b5f7e','#e3ad84'], magic:['#15163c','#5a4a88','#e0a08e']};
+function applyMode(){
+  const mg=mode==='magic';
+  for(const o of normalOnly) o.visible=!mg;
+  for(const o of magicOnly) o.visible=mg;
+  for(const m of motes) m.s.visible=mg;
+  hat.visible=hatDot.visible=mon.visible=!mg;
+  wandG.visible=mg; bowG.visible=!mg&&cur==='bow'; gunG.visible=!mg&&cur==='gun';
+  const p=SKY_PAL[mode], u=sky.material.uniforms; u.top.value.set(p[0]); u.mid.value.set(p[1]); u.bot.value.set(p[2]);
+  $('mLabel').hidden=!mg;
+}
+
+// ---------- 瑛国戦列艦 ----------
+const BOW=-27, STERN=25.5;
+function beamAt(x){ if(x<-11){ const k=clamp((x-BOW)/(-11-BOW),0,1); return 7.2*Math.pow(Math.sin(k*Math.PI/2),0.72); } if(x>19){ const k=clamp((STERN-x)/(STERN-19),0,1); return 7.2*(0.8+0.2*k); } return 7.2; }
+function topAt(x){ return 8.3+0.9*Math.pow(clamp(Math.abs(x+1)/26,0,1),2.2); }
+function fShape(y,top){ if(y<1.8) return 0.28+0.72*Math.sin(clamp((y-KEEL)/(1.8-KEEL),0,1)*Math.PI/2); return 1-0.13*Math.pow(clamp((y-1.8)/(top-1.8),0,1),1.4); }
+function sideZ(x,y){ return beamAt(x)*fShape(y,topAt(x)); }
+function buildHull(){
+  const NS=64, NR=18, pos=[], uv=[], idx=[];
+  const xs=[]; for(let i=0;i<=NS;i++){ const k=i/NS; xs.push(BOW+(STERN-BOW)*(1-Math.cos(k*Math.PI*0.5))*0.35+(STERN-BOW)*k*0.65); }
+  const rows=NR+1;
+  for(const side of [1,-1]){
+    for(let i=0;i<=NS;i++){ const x=xs[i], top=topAt(x);
+      for(let j=0;j<=NR;j++){ const y=KEEL+(top-KEEL)*j/NR; pos.push(x,y,side*sideZ(x,y)); uv.push((x-BOW)/(STERN-BOW),(y-KEEL)/12.4); } }
+  }
+  const off=(s,i,j)=>s*(NS+1)*rows+i*rows+j;
+  for(let i=0;i<NS;i++) for(let j=0;j<NR;j++){
+    const a=off(0,i,j), b=off(0,i+1,j); idx.push(a,b,a+1, b,b+1,a+1);
+    const c=off(1,i,j), d=off(1,i+1,j); idx.push(c,c+1,d, d,c+1,d+1);
+  }
+  for(let j=0;j<NR;j++){ const s0=off(0,NS,j), p0=off(1,NS,j); idx.push(s0,p0,s0+1, p0,p0+1,s0+1); }   // 船尾の板
+  for(let i=0;i<NS;i++){ const s0=off(0,i,0), s1=off(0,i+1,0), p0=off(1,i,0), p1=off(1,i+1,0); idx.push(s0,p0,s1, p0,p1,s1); }  // 竜骨
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2)); g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
+function deckShape(x0,x1,y,inset){
+  const s=new THREE.Shape(), st=0.5; s.moveTo(x0,sideZ(x0,y)*inset);
+  for(let x=x0;x<=x1;x+=st) s.lineTo(x,sideZ(x,y)*inset);
+  s.lineTo(x1,sideZ(x1,y)*inset); s.lineTo(x1,-sideZ(x1,y)*inset);
+  for(let x=x1;x>=x0;x-=st) s.lineTo(x,-sideZ(x,y)*inset);
+  s.closePath(); return s;
+}
+const ship=new THREE.Group(); ship.rotation.order='YXZ'; scene.add(ship);
+const hullMat=new THREE.MeshLambertMaterial({map:hullTex,side:THREE.DoubleSide});
+const hullMesh=new THREE.Mesh(buildHull(),hullMat); hullMesh.castShadow=true; hullMesh.receiveShadow=true; ship.add(hullMesh);
+const deckMat=new THREE.MeshLambertMaterial({map:deckTex});
+const woodMat=lam(0x3a2a1e), ochreMat=lam(0xc09550), darkMat=lam(0x0e0a08), ironMat=facet(0x1f1d1b,{shininess:30,specular:0x333333});
+const deckGeo=new THREE.ShapeGeometry(deckShape(BOW+1.5,STERN-0.2,7,0.96)); deckGeo.rotateX(-Math.PI/2); deckGeo.translate(0,7,0);
+const deck=new THREE.Mesh(deckGeo,deckMat); deck.receiveShadow=true; ship.add(deck);
+function raised(x0,x1,yb,h){ const g=new THREE.ExtrudeGeometry(deckShape(x0,x1,yb+h,0.95),{depth:h,bevelEnabled:false}); g.rotateX(-Math.PI/2); g.translate(0,yb,0); const m=new THREE.Mesh(g,[deckMat,woodMat]); m.castShadow=m.receiveShadow=true; ship.add(m); return m; }
+raised(-21.5,-12,7,1.3);    // 船首楼 y=8.3
+raised(13.5,STERN-0.3,7,2.4);  // 後甲板 y=9.4
+const railGeo=new THREE.BoxGeometry(1,0.14,0.3);
+function rail(x0,x1,y,z){ const m=new THREE.Mesh(railGeo,ochreMat); m.scale.x=x1-x0; m.position.set((x0+x1)/2,y,z); ship.add(m); }
+rail(13.5,25,10.4,5.9); rail(13.5,25,10.4,-5.9);
+{ const m=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.14,11.6),ochreMat); m.position.set(13.5,10.4,0); ship.add(m); }
+{ const m=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.14,8.6),ochreMat); m.position.set(-12,9.2,0); ship.add(m); }
+for(let x=14;x<25;x+=1.2) for(const z of [5.9,-5.9]){ const p=new THREE.Mesh(new THREE.BoxGeometry(0.1,1,0.1),ochreMat); p.position.set(x,9.9,z); ship.add(p); }
+// 甲板の小舟
+const boats=[];
+for(const [x,z] of [[-4,-1.6],[-4,1.6]]){ const b=new THREE.Mesh(new THREE.SphereGeometry(1,12,6,0,Math.PI*2,Math.PI/2,Math.PI/2),lam(0x6b4a30,{side:THREE.DoubleSide})); b.scale.set(3.4,0.8,1.05); b.rotation.x=Math.PI; b.position.set(x,7.9,z); b.castShadow=true; ship.add(b); boats.push(b); }
+// 船尾：旗竿と灯籠
+const staff=new THREE.Group(); staff.position.set(25.1,9.4,0); ship.add(staff);
+{ const p=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.1,6,6),woodMat); p.position.y=3; staff.add(p); }
+const ensignGeo=new THREE.PlaneGeometry(4.2,2.5,8,4), ensignBase=Float32Array.from(ensignGeo.attributes.position.array);
+const ensign=new THREE.Mesh(ensignGeo,new THREE.MeshLambertMaterial({map:ensignTex,side:THREE.DoubleSide})); ensign.position.set(2.15,4.6,0); staff.add(ensign);
+const lanterns=[];
+for(const z of [-2.4,0,2.4]){ const l=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.8,0.5),new THREE.MeshLambertMaterial({color:0x2a2018,emissive:0xffb050,emissiveIntensity:0.9})); l.position.set(24.6,11,z); ship.add(l);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,color:0xffb060,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false})); s.scale.set(2.6,2.6,1); s.position.set(24.6,11,z); ship.add(s); lanterns.push({l,s}); }
+// 錨綱
+{ const c=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,11,5),woodMat); c.position.set(-27,3,4.4); c.rotation.set(0.35,0,0.75); ship.add(c); }
+// 船首斜檣と三角帆
+const bowsprit=new THREE.Group(); bowsprit.position.set(-25.5,7.9,0); ship.add(bowsprit);
+{ const bs=new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.42,15.4,8),woodMat); bs.position.set(-7.25,2.3,0); bs.rotation.z=1.263; bs.castShadow=true; bowsprit.add(bs);
+  const jb=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.2,8,6),woodMat); jb.position.set(-17.5,5.6,0); jb.rotation.z=1.263; bowsprit.add(jb); }
+const jibMat=new THREE.MeshLambertMaterial({map:sailTex,side:THREE.DoubleSide});
+const jibs=[];
+for(const pts of [[[-19,6.1],[13,15],[-3,1.6]],[[-11,3.8],[14,12],[6,1.2]]]){
+  const g=new THREE.BufferGeometry().setFromPoints(pts.map(p=>new V3(p[0],p[1],0))); g.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,1,1,1,0],2)); g.computeVertexNormals();
+  const m=new THREE.Mesh(g,jibMat); m.castShadow=true; bowsprit.add(m); jibs.push(m);
+}
+const holes=new THREE.Group(); ship.add(holes);
+const holeMat=new THREE.MeshLambertMaterial({map:holeTex,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4});
+const scorchMat=new THREE.MeshBasicMaterial({map:scorchTex,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4});
+function decalAt(lx,ly,size,mat){
+  const z=sideZ(lx,ly), dz=(sideZ(lx,ly+0.1)-sideZ(lx,ly-0.1))/0.2;
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(size,size),mat); m.position.set(lx,ly,z+0.06); m.rotation.set(Math.atan(dz),0,rand(0,6)); holes.add(m);
+}
+
+// 砲門
+const ports=[];
+{
+  const order=[...Array(16).keys()].sort(()=>Math.random()-0.5);
+  let n=0;
+  for(const row of [3.0,5.3]) for(let i=0;i<8;i++){
+    const x=-13+i*4, z=sideZ(x,row), dz=(sideZ(x,row+0.1)-sideZ(x,row-0.1))/0.2;
+    const pg=new THREE.Group(); pg.position.set(x,row,z+0.03); pg.rotation.x=Math.atan(dz); ship.add(pg);
+    const hole=new THREE.Mesh(new THREE.PlaneGeometry(1,1),darkMat); pg.add(hole);
+    const lidP=new THREE.Group(); lidP.position.set(0,0.53,0.03); pg.add(lidP);
+    const lid=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,0.08),lam(0x7a3322)); lid.position.y=-0.55; lidP.add(lid);
+    const barrel=new THREE.Group(); pg.add(barrel);
+    const bm=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.2,1.8,10).rotateX(Math.PI/2),ironMat); barrel.add(bm);
+    const mz=new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.19,0.12,10).rotateX(Math.PI/2),ironMat); mz.position.z=0.86; barrel.add(mz);
+    ports.push({x,row,pg,lidP,lid,barrel,hole,rank:order[n++],open:0,hp:PORT_HP,dead:false});
+  }
+}
+// 帆柱
+const YARD_ROT=Math.PI/2+0.75, TOP_FRAC=0.62;
+const MAST_DEF=[
+  {name:'前檣',x:-10,base:7,h:34,tiers:[[15,0.30],[12,0.53],[8,0.77]]},
+  {name:'大檣',x:3,base:7,h:40,tiers:[[16,0.30],[13,0.53],[9,0.77]]},
+  {name:'後檣',x:17,base:9.4,h:27,tiers:[[11,0.38],[8,0.72]]},
+];
+const lineMat=new THREE.LineBasicMaterial({color:0x221810,transparent:true,opacity:.72});
+function lines(pts){ return new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),lineMat); }
+const masts=MAST_DEF.map((def,mi)=>{
+  const group=new THREE.Group(); group.position.set(def.x,def.base,0); ship.add(group);
+  const lh=def.h*TOP_FRAC;
+  const lower=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.5,lh+0.6,10),woodMat); lower.position.y=(lh+0.6)/2; lower.castShadow=true; group.add(lower);
+  const topP=new THREE.Mesh(new THREE.BoxGeometry(2.8,0.25,3.2),woodMat); topP.position.y=lh; topP.castShadow=true; group.add(topP);
+  const topG=new THREE.Group(); topG.position.y=lh-0.2; group.add(topG);
+  const upper=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.26,def.h-lh+0.4,8),woodMat); upper.position.y=(def.h-lh)/2+0.2; upper.castShadow=true; topG.add(upper);
+  const cap=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.3,0.6),woodMat); cap.position.y=def.h-lh+0.35; topG.add(cap);
+  const yardsL=new THREE.Group(); yardsL.rotation.y=YARD_ROT; group.add(yardsL);
+  const yardsT=new THREE.Group(); yardsT.rotation.y=YARD_ROT; topG.add(yardsT);
+  const mat=new THREE.MeshLambertMaterial({map:sailTex,side:THREE.DoubleSide,alphaTest:0.5});
+  const sails=def.tiers.map(([w,cf],ti)=>{
+    const top=cf>TOP_FRAC, parent=top?yardsT:yardsL, oy=top?-(lh-0.2):0;
+    const sh=def.h*(def.tiers.length===2?0.24:0.2), cy=def.h*cf+oy;
+    const geo=new THREE.PlaneGeometry(w,sh,8,5), base=Float32Array.from(geo.attributes.position.array);
+    const m=mat.clone(); const mesh=new THREE.Mesh(geo,m); mesh.position.y=cy; mesh.castShadow=true; parent.add(mesh);
+    const yard=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.15,w+1.4,6).rotateZ(Math.PI/2),woodMat); yard.position.y=cy+sh/2; parent.add(yard);
+    return {mesh,geo,base,w,h:sh,cy,top,parent,mat:m,hp:SAIL_HP,torn:false,burnt:false,ph:rand(0,6),mi,ti,flap:0};
+  });
+  // 横静索と縄梯子
+  const pts=[], M=new V3(0,lh,0);
+  for(const side of [1,-1]){
+    const cy=7.1-def.base, ch=[]; for(const dx of [-2.6,-1.6,-0.6,0.4,1.4]) ch.push(new V3(dx,cy,side*(sideZ(def.x+dx,7.1)+0.45)));
+    for(const c of ch) pts.push(M,c);
+    for(let f=0.06;f<0.9;f+=0.9/lh){ pts.push(ch[0].clone().lerp(M,f),ch[4].clone().lerp(M,f)); }
+  }
+  const stayTo = mi===0 ? new V3(-40-def.x,12.8-def.base,0) : new V3(MAST_DEF[mi-1].x-def.x+0.5,MAST_DEF[mi-1].base+1-def.base,0);
+  const stayLine=lines([M,stayTo]); group.add(stayLine);
+  group.add(lines(pts));
+  const tpts=[], TM=new V3(0,def.h-lh,0);
+  for(const side of [1,-1]){ const ch=[-0.9,0,0.9].map(dx=>new V3(dx,0.3,side*1.5)); for(const c of ch) tpts.push(TM,c); for(let f=0.1;f<0.9;f+=0.12) tpts.push(ch[0].clone().lerp(TM,f),ch[2].clone().lerp(TM,f)); }
+  topG.add(lines(tpts));
+  let flagMesh=null, flagBase=null;
+  if(mi===1){ const fg=new THREE.PlaneGeometry(3.6,2.2,6,3); flagBase=Float32Array.from(fg.attributes.position.array); flagMesh=new THREE.Mesh(fg,new THREE.MeshLambertMaterial({map:unionTex,side:THREE.DoubleSide})); flagMesh.position.set(1.9,def.h-lh+1,0); topG.add(flagMesh); }
+  const stub=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.5,2.2,8),woodMat); stub.position.set(def.x,def.base+1.1,0); stub.visible=false; ship.add(stub);
+  return {def,lh,group,topG,yardsL,yardsT,sails,stub,flagMesh,flagBase,stayLine,lowerHp:LOWER_MAST_HP,topHp:TOP_MAST_HP,state:'up',topState:'up',fallT:0,topFallT:0,splashed:false,topSplashed:false};
+});
+
+// ---------- 瑛兵 ----------
+const FIG={
+  sailor: {coat:0x1c2a55, legs:0xe9e4d8, hat:'round'},
+  marine: {coat:0xa3262a, legs:0xe9e4d8, hat:'shako'},
+  officer:{coat:0x14203f, legs:0xe0dccd, hat:'bicorne'},
+};
+function makeFigure(kind){
+  const f=FIG[kind], g=new THREE.Group();
+  const mats=[lam(f.legs),lam(f.coat),lam(0xe0b894),lam(0x111111),lam(0xf0ece2)];
+  mats.forEach(m=>{m.transparent=true;});
+  const hip=new V3(0,0.92,0);
+  const leg=()=>{ const p=new THREE.Group(); p.position.copy(hip); const m=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.92,0.22),mats[0]); m.position.y=-0.46; m.castShadow=true; p.add(m); g.add(p); return p; };
+  const legL=leg(), legR=leg(); legL.position.x=-0.12; legR.position.x=0.12;
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.56,0.76,0.32),mats[1]); body.position.y=1.3; body.castShadow=true; g.add(body);
+  if(kind==='marine'){ const b1=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.8,0.02),mats[4]); b1.position.set(0,1.3,0.17); b1.rotation.z=0.6; g.add(b1); const b2=b1.clone(); b2.rotation.z=-0.6; g.add(b2); }
+  if(kind==='officer'){ for(const x of [-0.3,0.3]){ const ep=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.05,0.2),lam(0xd8b050)); ep.position.set(x,1.7,0); g.add(ep); } }
+  const arm=(x)=>{ const p=new THREE.Group(); p.position.set(x,1.62,0); const m=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.7,0.16),mats[1]); m.position.y=-0.35; p.add(m); const h=new THREE.Mesh(new THREE.SphereGeometry(0.07,5,4),mats[2]); h.position.y=-0.72; p.add(h); g.add(p); return p; };
+  const armL=arm(-0.36), armR=arm(0.36);
+  const hd=new THREE.Mesh(new THREE.SphereGeometry(0.19,8,6),mats[2]); hd.position.y=1.9; g.add(hd);
+  if(f.hat==='round'){ const h=new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.26,0.07,10),mats[3]); h.position.y=2.07; g.add(h); const c=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.17,0.12,10),mats[3]); c.position.y=2.14; g.add(c); }
+  else if(f.hat==='shako'){ const h=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.17,0.36,10),mats[3]); h.position.y=2.2; g.add(h); }
+  else { const h=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.2,0.18),mats[3]); h.position.y=2.12; g.add(h); }
+  if(kind==='marine'){ const mk=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,1.4),lam(0x3a2a1e)); mk.position.set(0.02,-0.55,0.1); mk.rotation.x=-1.35; armR.add(mk); }
+  g.scale.setScalar(1.3);
+  return {obj:g,mats,legL,legR,armL,armR,kind};
+}
+function setOpacity(c,o){ for(const m of c.mats) m.opacity=o; }
+
+// ---------- 演出（粒子） ----------
+const PMAX=720, pool=[]; let pIdx=0;
+for(let i=0;i<PMAX;i++){ const m=new THREE.SpriteMaterial({map:dotTex,transparent:true,depthWrite:false}); const s=new THREE.Sprite(m); s.visible=false; scene.add(s); pool.push({s,m,vel:new V3(),active:false}); }
+function emit(pos,o){
+  const p=pool[pIdx]; pIdx=(pIdx+1)%PMAX;
+  p.active=true; p.s.visible=true; p.s.position.copy(pos);
+  p.vel.set(o.vx||0,o.vy||0,o.vz||0); p.life=0; p.max=o.life; p.g=o.g||0; p.grow=o.grow||0; p.size=o.size; p.drag=o.drag||0;
+  p.s.scale.set(o.size,o.size,1); p.m.color.set(o.color); p.op=o.op==null?1:o.op; p.m.opacity=p.op; p.m.map=o.tex||dotTex; p.m.rotation=o.tex===smokeTex?rand(0,6):0;
+  const bl=o.add?THREE.AdditiveBlending:THREE.NormalBlending; if(p.m.blending!==bl){ p.m.blending=bl; p.m.needsUpdate=true; }
+}
+const tmpV=new V3(), tmpW=new V3();
+function smoke(pos,n,size,color,spread,up){ for(let i=0;i<n;i++) emit(tmpW.copy(pos).add(new V3(rand(-spread,spread),rand(-spread,spread)*0.5,rand(-spread,spread))),{tex:smokeTex,vx:rand(-1,1),vy:rand(0.5,up||2),vz:rand(-1,1),life:rand(1.6,3.2),size:size*rand(0.8,1.3),grow:size*0.9,color:color||0xd8d2c6,op:0.8,drag:0.6}); }
+function sparks(pos,n,spd){ for(let i=0;i<n;i++) emit(pos,{vx:rand(-1,1)*spd,vy:rand(-0.3,1)*spd,vz:rand(-1,1)*spd,life:rand(.25,.7),size:rand(0.2,0.5),color:0xffb050,add:true,g:9.8}); }
+function flashAt(pos,size){ emit(pos,{life:0.16,size,color:0xffc070,add:true}); emit(pos,{life:0.3,size:size*1.8,color:0xff8040,add:true,op:0.5}); }
+function wood(pos,n){ for(let i=0;i<n;i++) emit(pos,{vx:rand(-5,5),vy:rand(2,8),vz:rand(-5,5),life:rand(.9,1.6),size:rand(0.2,0.45),color:0x5c4028,g:9.8}); }
+const rings=[];
+for(let i=0;i<28;i++){ const m=new THREE.Mesh(new THREE.RingGeometry(0.8,1,32).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xeef3f8,transparent:true,depthWrite:false})); m.visible=false; scene.add(m); rings.push({m,life:0,max:1,size:1}); }
+let ringIdx=0;
+function ring(pos,size){ const r=rings[ringIdx]; ringIdx=(ringIdx+1)%rings.length; r.m.visible=true; r.m.position.set(pos.x,waveY(pos.x,pos.z)+0.12,pos.z); r.life=0; r.max=1.3; r.size=size; }
+function splash(pos,big){
+  const n=big?30:10, h=big?10:4, y=waveY(pos.x,pos.z);
+  for(let i=0;i<n;i++) emit(tmpW.set(pos.x+rand(-.5,.5),y,pos.z+rand(-.5,.5)),{vx:rand(-1,1)*(big?3:1.5),vy:rand(h*0.4,h),vz:rand(-1,1)*(big?3:1.5),life:rand(.7,1.4),size:big?rand(0.8,1.8):rand(0.4,0.8),color:0xeef4f8,g:9.8,op:.9});
+  if(big) emit(tmpW.set(pos.x,y+1,pos.z),{tex:smokeTex,vy:1.2,life:1.4,size:4,grow:4,color:0xe8eef2,op:.5});
+  ring(pos,big?5:2);
+}
+function dust(pos,big){ smoke(pos,big?16:6,big?2.4:1,0x8a7660,big?1.5:0.4,big?3:1.5); if(big){ sparks(pos,14,8); flashAt(pos,6); lightFlash(pos,5); } }
+
+// ---------- 画面上の文字 ----------
+const fxEl=$('fx'), bannerEl=$('banner');
+function screenOf(pos){ const v=pos.clone().project(camera); return {x:(v.x*0.5+0.5)*100, y:(-v.y*0.5+0.5)*100, ok:v.z<1}; }
+function popText(pos,text,color,big){
+  const s=screenOf(pos); if(!s.ok) return;
+  const e=document.createElement('span'); e.textContent=text; e.style.left=s.x+'%'; e.style.top=s.y+'%'; e.style.color=color||'#fff'; if(big) e.className='big';
+  fxEl.appendChild(e); setTimeout(()=>e.remove(),big?1850:1250);
+}
+function showBanner(text,color){ bannerEl.textContent=text; bannerEl.style.color=color||'#ece2cc'; bannerEl.classList.remove('show'); void bannerEl.offsetWidth; bannerEl.classList.add('show'); }
+
+// ---------- 状態 ----------
+let state='title', t=0, gameT=0, diff=DIFFS.normal, cur='bow';
+let ammo={}, readyAt={}, crew=[], bodies=[], shots=[], eballs=[], fires=[], casts=[], bolts=[], stats=null, sections={};
+let sinking=false, destroyedCount=0, hullFlash=0, endTimer=-1, endKind=null, warned=0, counterT=0, counterQueue=[], counterIdx=0;
+let listT=0, trimT=0, listV=0, trimV=0, sinkY=0, bowspritFall=0, staffFall=0;
+let zoom=false, shake=0, flashV=0;
+const ndc=new THREE.Vector2(0,0.1); let pxX=0, pxY=0, aiming=false;
+const raycaster=new THREE.Raycaster();
+const aimPt=new V3(), launchDir=new V3(), muzzlePos=new V3();
+
+const ZONES={
+  waist:{x:[-11,12.5],z:[-5.4,5.4],y:7},
+  fc:{x:[-20,-13.5],z:[-3,3],y:8.3},
+  qd:{x:[14.8,23.2],z:[-4.8,4.8],y:9.4},
+};
+function resetShip(){
+  ship.position.copy(SHIP_POS); ship.rotation.set(0,SHIP_YAW,0);
+  sections={}; for(const k in SECTIONS) sections[k]={name:SECTIONS[k].name,hp:SECTIONS[k].hp,max:SECTIONS[k].hp,dead:false};
+  sinking=false; destroyedCount=0; hullFlash=0; listT=trimT=listV=trimV=0; sinkY=0; bowspritFall=0; staffFall=0;
+  while(holes.children.length) holes.remove(holes.children[0]);
+  for(const f of fires) if(f.g.parent) f.g.parent.remove(f.g);
+  fires=[];
+  for(const m of masts){
+    m.state='up'; m.topState='up'; m.lowerHp=LOWER_MAST_HP; m.topHp=TOP_MAST_HP; m.fallT=m.topFallT=0; m.splashed=m.topSplashed=false;
+    m.group.visible=true; m.group.rotation.set(0,0,0); m.group.position.set(m.def.x,m.def.base,0); m.topG.visible=true; m.topG.rotation.set(0,0,0); m.topG.position.set(0,m.lh-0.2,0); m.stub.visible=false;
+    for(const s of m.sails){ s.hp=SAIL_HP; s.torn=false; s.burnt=false; s.mat.map=sailTex; s.mat.color.setHex(0xffffff); s.mesh.visible=true; s.flap=0; }
+    for(const yg of [m.yardsL,m.yardsT]) for(const ch of [...yg.children]) if(ch.userData.sailor) yg.remove(ch);
+  }
+  for(const p of ports){ p.open=0; p.hp=PORT_HP; p.dead=false; p.lid.visible=true; p.lidP.rotation.x=0; p.barrel.position.z=-0.75; p.barrel.rotation.x=0; p.hole.material=darkMat; }
+  bowsprit.rotation.set(0,0,0); bowsprit.visible=true; for(const j of jibs) j.visible=true; masts[0].stayLine.visible=true;
+  staff.rotation.set(0,0,0); staff.visible=true;
+  for(const l of lanterns){ l.l.material.emissiveIntensity=0.9; l.s.visible=true; }
+  for(const b of boats) b.visible=true;
+}
+function spawnCrew(){
+  for(const c of crew) if(c.obj.parent) c.obj.parent.remove(c.obj);
+  for(const b of bodies) if(b.obj.parent) b.obj.parent.remove(b.obj);
+  crew=[]; bodies=[];
+  masts.forEach((m,mi)=>{
+    const lowSail=m.sails.filter(s=>!s.top).slice(-1)[0], topSail=m.sails.filter(s=>s.top)[0];
+    for(const [s,part] of [[lowSail,'lower'],[topSail,'top']]){
+      const c=makeFigure('sailor'); c.obj.userData.sailor=true;
+      c.obj.position.set((part==='top'?0.26:-0.28)*s.w,s.cy+s.h/2+0.1,-0.5);
+      c.armL.rotation.x=c.armR.rotation.x=-2.7;
+      s.parent.add(c.obj);
+      crew.push(Object.assign(c,{mast:mi,part,sail:s,state:'ok',ph:rand(0,6)}));
+    }
+  });
+  const add=(kind,zone)=>{ const c=makeFigure(kind); const z=ZONES[zone];
+    c.obj.position.set(rand(z.x[0],z.x[1]),z.y,rand(z.z[0],z.z[1])); ship.add(c.obj);
+    const o=Object.assign(c,{mast:-1,zone,state:'ok',tx:0,tz:0,wait:rand(0,1.5),ph:rand(0,6),flee:0}); crew.push(o); pickTarget(o); };
+  add('officer','qd'); add('officer','qd'); add('marine','qd'); add('marine','qd'); add('marine','qd');
+  add('sailor','fc'); add('sailor','fc'); add('sailor','fc');
+  const nWaist=diff.crew-crew.length;
+  for(let i=0;i<nWaist;i++) add('sailor','waist');
+}
+function pickTarget(c){
+  const z=ZONES[c.zone], prep=gameT/diff.time;
+  if(c.zone==='waist' && prep>0.55 && Math.random()<0.65){ const alive=ports.filter(p=>!p.dead); const p=alive.length?alive[(Math.random()*alive.length)|0]:ports[0]; c.tx=clamp(p.x+rand(-0.6,0.6),z.x[0],z.x[1]); c.tz=rand(4.6,5.4); }
+  else { c.tx=rand(z.x[0],z.x[1]); c.tz=rand(z.z[0],z.z[1]); }
+}
+const aliveCrew=()=>crew.reduce((a,c)=>a+(c.state==='ok'?1:0),0);
+
+function reset(){
+  cur='bow'; gameT=0; endTimer=-1; endKind=null; warned=0; counterT=0; counterQueue=[]; shake=0; flashV=0;
+  ORDER.forEach(k=>{ammo[k]=WEP()[k].ammo; readyAt[k]=0;});
+  for(const p of shots) scene.remove(p.mesh); for(const b of eballs) scene.remove(b.mesh);
+  for(const c of casts) scene.remove(c.cloud); for(const b of bolts) scene.remove(b.g);
+  shots=[]; eballs=[]; casts=[]; bolts=[];
+  stats={fired:{bow:0,gun:0,cannon:0},hits:{bow:0,gun:0,cannon:0},kills:0,overboard:0,masts:0,tops:0,sails:0,ports:0,sections:[],fires:0};
+  resetShip(); spawnCrew(); setZoom(false);
+  ballPile.forEach(b=>b.visible=mode!=='magic');
+  orbs.forEach(o=>o.visible=mode==='magic');
+  fxEl.innerHTML='';
+}
+
+function select(k){ if(state!=='play'||!WEP()[k]) return; if(cur!==k){ cur=k; readyAt[k]=Math.max(readyAt[k],gameT+0.25); } }
+function setZoom(on){ zoom=on; $('scopeBtn').setAttribute('aria-pressed',String(on)); $('zoomvig').classList.toggle('on',on); }
+
+// ---------- 照準 ----------
+function pivotOf(k){ return k==='cannon'?CANNON_PIVOT:SHOULDER; }
+const MUZ_L={bow:0.6,gun:1.7,cannon:2.1};
+function updateAim(){
+  raycaster.setFromCamera(ndc,camera);
+  const d=camera.position.distanceTo(SHIP_POS);
+  aimPt.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction,d);
+  const pv=mode==='magic'?SHOULDER:pivotOf(cur);
+  launchDir.copy(aimPt).sub(pv).normalize();
+  muzzlePos.copy(pv).addScaledVector(launchDir,mode==='magic'?WAND_TIP_L:MUZ_L[cur]);
+}
+function poseWeapons(){
+  const ready=gameT>=readyAt[cur]&&ammo[cur]>0;
+  if(mode==='magic'){
+    bowG.visible=gunG.visible=false; wandG.visible=true; armBack.visible=true; linstock.visible=false;
+    const yawT=Math.atan2(-(aimPt.x-SAM_POS.x),-(aimPt.z-SAM_POS.z));
+    if(cur==='cannon'){ arms.lookAt(tmpV.copy(SHOULDER).add(new V3(-0.3,3.2,-1.2))); samurai.rotation.y=yawT*0.5; }
+    else { arms.lookAt(aimPt); samurai.rotation.y=yawT*0.8; }
+    wandTip.material.color.setHex(SPELL_COL[cur]);
+    const k=ready?1:0.35; wandTip.material.opacity=k*(0.75+0.25*Math.sin(t*10)); const s=(ready?0.42:0.26)+0.05*Math.sin(t*7); wandTip.scale.set(s,s,1);
+    return;
+  }
+  bowG.visible=cur==='bow'; gunG.visible=cur==='gun'; armBack.visible=cur!=='cannon'; wandG.visible=false;
+  nocked.visible=cur==='bow'&&ready;
+  const sp=strGeo.attributes.position; sp.setZ(1,ready?-0.25:0.1); sp.needsUpdate=true;
+  match.material.opacity=0.6+0.4*Math.sin(t*9);
+  const yawT=Math.atan2(-(aimPt.x-SAM_POS.x),-(aimPt.z-SAM_POS.z));
+  if(cur==='cannon'){
+    cannonPivot.lookAt(aimPt);
+    arms.lookAt(tmpV.set(-0.55,3.8,-1.3)); samurai.rotation.y=0.9; linstock.visible=true;
+    linstock.material.opacity=ready?0.7+0.3*Math.sin(t*9):0.3;
+  } else {
+    arms.lookAt(aimPt); samurai.rotation.y=yawT*0.8; linstock.visible=false;
+    cannonPivot.lookAt(tmpV.set(CANNON_PIVOT.x-1,CANNON_PIVOT.y+0.6,CANNON_PIVOT.z-10));
+  }
+  cannonBase.rotation.y = cur==='cannon'? Math.atan2(-(aimPt.x-CANNON_PIVOT.x),-(aimPt.z-CANNON_PIVOT.z)) : 0.1;
+}
+
+// 弾道の目安
+const PV_MAX=260;
+const pvGeo=new THREE.BufferGeometry(); pvGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(PV_MAX*3),3));
+const pvPts=new THREE.Points(pvGeo,new THREE.PointsMaterial({color:0xece2cc,size:0.32,transparent:true,opacity:.75,depthWrite:false}));
+pvPts.frustumCulled=false; scene.add(pvPts);
+const marker=new THREE.Mesh(new THREE.RingGeometry(1.2,1.6,28),new THREE.MeshBasicMaterial({color:0xcf4a2c,transparent:true,opacity:.85,depthWrite:false,side:THREE.DoubleSide}));
+scene.add(marker);
+const localTmp=new V3();
+function updatePreview(){
+  if(state!=='play' || (mode==='magic'&&cur==='cannon')){ pvPts.visible=false; marker.visible=false; return; }
+  pvPts.visible=true;
+  pvPts.material.color.setHex(mode==='magic'?SPELL_COL[cur]:0xece2cc);
+  const w=WEP()[cur], arr=pvGeo.attributes.position.array;
+  const p=muzzlePos.clone(), v=launchDir.clone().multiplyScalar(w.speed);
+  const dt=cur==='bow'?0.03:0.012;
+  let n=0, hitShip=false;
+  for(;n<PV_MAX;n++){
+    v.y-=G*dt; p.addScaledVector(v,dt);
+    arr[n*3]=p.x; arr[n*3+1]=p.y; arr[n*3+2]=p.z;
+    if(p.y<=0) break;
+    localTmp.copy(p); ship.worldToLocal(localTmp);
+    if(!sinking && localTmp.x>BOW-14 && localTmp.x<STERN && Math.abs(localTmp.z)<7.5 && localTmp.y>-1 && localTmp.y<48){ hitShip=true; break; }
+  }
+  const shown=Math.max(2,Math.floor((n+1)*diff.preview));
+  pvGeo.setDrawRange(0,Math.min(shown,n+1)); pvGeo.attributes.position.needsUpdate=true;
+  marker.visible=diff.marker;
+  if(diff.marker){
+    marker.position.copy(p);
+    if(hitShip){ marker.lookAt(camera.position); marker.material.color.setHex(0xcf4a2c); }
+    else { marker.position.y=Math.max(0.2,waveY(p.x,p.z)+0.15); marker.rotation.set(-Math.PI/2,0,0); marker.material.color.setHex(0xece2cc); }
+  }
+}
+
+// ---------- 射撃 ----------
+function fire(){
+  if(state!=='play') return;
+  const w=WEP()[cur];
+  if(ammo[cur]<=0){ showBanner(mode==='magic'?`${w.name}の魔力が尽きた`:`${w.name}の弾が尽きた`,'#f0b7a4'); return; }
+  if(gameT<readyAt[cur]) return;
+  ammo[cur]--; readyAt[cur]=gameT+w.reload; stats.fired[cur]++;
+  if(mode==='magic' && cur==='cannon'){ castLightning(); return; }
+  const dir=launchDir.clone();
+  const s=w.spread*Math.PI/180;
+  dir.applyAxisAngle(new V3(0,1,0),rand(-s,s)); dir.y+=rand(-s,s); dir.normalize();
+  let mesh;
+  if(mode==='magic'){
+    mesh=new THREE.Group();
+    const water=cur==='bow';
+    const core=new THREE.Mesh(new THREE.SphereGeometry(water?0.24:0.28,12,10),new THREE.MeshBasicMaterial({color:water?0xbfe6ff:0xffe0a0,transparent:true,opacity:.9}));
+    mesh.add(core);
+    const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:water?dotTex:fireTex,color:water?0x5aa8ff:0xffffff,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+    glow.scale.set(water?1.3:1.6,water?1.3:2.2,1); mesh.add(glow);
+    emit(muzzlePos,{life:0.25,size:1.2,color:SPELL_COL[cur],add:true});
+    for(let i=0;i<8;i++) emit(muzzlePos,{vx:rand(-2,2),vy:rand(-1,2),vz:rand(-2,2),life:rand(.3,.6),size:0.15,color:SPELL_COL[cur],add:true});
+    whoosh(!water); if(!water) lightFlash(muzzlePos,2.5);
+  } else if(cur==='bow'){
+    mesh=new THREE.Group();
+    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.4,4).rotateX(Math.PI/2),lam(0xefe3c4)); mesh.add(shaft);
+    const fl=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.14,0.28),lam(0xb8372a)); fl.position.z=-0.6; mesh.add(fl);
+    mesh.scale.setScalar(1.4); twang();
+  } else if(cur==='gun'){
+    mesh=new THREE.Mesh(new THREE.SphereGeometry(0.12,6,4),new THREE.MeshBasicMaterial({color:0xffe6b0}));
+    noise(.25,2600,.35); flashAt(muzzlePos,1.2); smoke(muzzlePos,5,0.7,0xe6e2d8,0.2,1);
+  } else {
+    mesh=new THREE.Mesh(new THREE.SphereGeometry(0.35,10,8),lam(0x151210));
+    noise(.9,700,.8); flashAt(muzzlePos,4); sparks(muzzlePos,12,10); smoke(muzzlePos,8,1.0,0xe0dbd0,0.5,1.5); addShake(0.25); lightFlash(muzzlePos,6);
+    const b=ballPile[ammo.cannon]; if(b) b.visible=false;
+  }
+  mesh.position.copy(muzzlePos); scene.add(mesh);
+  shots.push({w:cur,mesh,pos:muzzlePos.clone(),vel:dir.multiplyScalar(w.speed),age:0,magic:mode==='magic'});
+}
+function addShake(m){ if(!reduceMotion) shake=Math.max(shake,m); }
+
+// ---------- 落雷の魔法 ----------
+// 照準の先で最初に当たる所（船の部位・海・浜）を探す
+function rayTarget(){
+  raycaster.setFromCamera(ndc,camera);
+  const o=raycaster.ray.origin, d=raycaster.ray.direction, p=new V3();
+  for(let s=6;s<320;s+=0.35){
+    p.copy(o).addScaledVector(d,s);
+    if(hitTest(p)) return p;
+    if(p.z>-6.2 && p.y<=3.05) return p;
+    if(p.y<=waveY(p.x,p.z)) return p;
+  }
+  return p;
+}
+const strikeMark=new THREE.Mesh(new THREE.RingGeometry(0.9,1.2,32),new THREE.MeshBasicMaterial({color:0xe6e0ff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+scene.add(strikeMark);
+function castLightning(){
+  const P=rayTarget(); P.x+=rand(-0.3,0.3); P.z+=rand(-0.3,0.3);
+  const cloud=new THREE.Sprite(new THREE.SpriteMaterial({map:smokeTex,color:0x2a2840,transparent:true,opacity:0,depthWrite:false}));
+  cloud.position.set(P.x,Math.max(P.y,0)+46,P.z); cloud.scale.set(46,26,1); scene.add(cloud);
+  casts.push({pos:P,t:STRIKE_DELAY,cloud,after:0,struck:false});
+  const o=orbs[ammo.cannon]; if(o) o.visible=false;
+  emit(muzzlePos,{life:0.4,size:2,color:0xe6e0ff,add:true});
+  for(let i=0;i<14;i++){ const a=rand(0,Math.PI*2); emit(circleG.localToWorld(tmpW.set(Math.cos(a)*1.6,Math.sin(a)*1.6,0.1)),{vy:rand(3,7),life:rand(.5,.9),size:0.2,color:0xe6e0ff,add:true}); }
+  noise(0.6,2600,0.12);
+}
+const boltGeo=new THREE.CylinderGeometry(1,1,1,5,1,true);
+const UP=new V3(0,1,0);
+function boltSegs(g,pts,r,mat){
+  for(let i=0;i<pts.length-1;i++){
+    const a=pts[i], b=pts[i+1], d=b.clone().sub(a), len=d.length();
+    const m=new THREE.Mesh(boltGeo,mat); m.scale.set(r,len,r); m.position.copy(a).addScaledVector(d,0.5);
+    m.quaternion.setFromUnitVectors(UP,d.normalize()); g.add(m);
+  }
+}
+function jagged(from,to,n,amp){
+  const pts=[from.clone()];
+  for(let i=1;i<n;i++){ const k=i/n, p=from.clone().lerp(to,k), w=amp*Math.sin(Math.PI*k); p.x+=rand(-w,w); p.z+=rand(-w,w); p.y+=rand(-w,w)*0.3; pts.push(p); }
+  pts.push(to.clone()); return pts;
+}
+function makeBolt(from,to){
+  const g=new THREE.Group();
+  const core=new THREE.MeshBasicMaterial({color:0xf4f6ff,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+  const halo=new THREE.MeshBasicMaterial({color:0x8aa8ff,transparent:true,opacity:.35,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+  const main=jagged(from,to,16,4);
+  boltSegs(g,main,0.22,core); boltSegs(g,main,0.8,halo);
+  for(let b=0;b<3;b++){ const i=2+((Math.random()*10)|0), s=main[i]; const e=s.clone().add(new V3(rand(-9,9),-rand(6,14),rand(-5,5))); const br=jagged(s,e,6,1.6); boltSegs(g,br,0.1,core); boltSegs(g,br,0.4,halo); }
+  scene.add(g); bolts.push({g,core,halo,life:0});
+}
+function strike(c){
+  let impact=null, hit=null;
+  const q2=c.pos.clone();
+  for(let i=0;i<260;i++){
+    hit=hitTest(q2); if(hit){ impact=q2.clone(); break; }
+    if(q2.z>-6.2 && q2.y<=3.05){ impact=q2.clone(); impact.y=3; break; }
+    const wy=waveY(q2.x,q2.z); if(q2.y<=wy){ impact=q2.clone(); impact.y=wy; break; }
+    q2.y-=0.3;
+  }
+  if(!impact) impact=q2.clone();
+  makeBolt(new V3(c.pos.x+rand(-6,6),c.cloud.position.y-2,c.pos.z+rand(-3,3)),impact);
+  flashV=Math.max(flashV,0.6); flashColor('#e6ecff'); lightFlash(impact,16); thunder(); addShake(0.4);
+  for(let i=0;i<26;i++) emit(impact,{vx:rand(-10,10),vy:rand(-2,10),vz:rand(-10,10),life:rand(.2,.6),size:rand(0.2,0.5),color:0xcfdcff,add:true,g:6});
+  emit(impact,{life:0.25,size:10,color:0xdde6ff,add:true});
+  if(hit) applyHit({w:'cannon',pos:impact,magic:true},hit);
+  else if(impact.y<=0.8 && impact.z<-6.2){ splash(impact,true); smoke(impact,10,3,0xf0f2f6,1.5,4); ring(impact,10); }
+  else dust(impact,true);
+}
+function flashColor(c){ $('flash').style.background=c; }
+
+// ---------- 当たり判定 ----------
+const lp=new V3(), q=new V3();
+const secOf=lx=>lx<-12?'bow':lx>12?'stern':'mid';
+function hitTest(pos){
+  if(sinking) return null;
+  lp.copy(pos); ship.worldToLocal(lp);
+  if(lp.x<BOW-16||lp.x>STERN+6||Math.abs(lp.z)>20||lp.y<-4||lp.y>50) return null;
+  for(const c of crew){ if(c.state!=='ok') continue; q.copy(pos); c.obj.worldToLocal(q);
+    if(Math.abs(q.x)<0.42 && q.y>-0.05 && q.y<2.35 && Math.abs(q.z)<0.42) return {kind:'crew',c}; }
+  for(const p of ports){ if(p.dead) continue; q.copy(pos); p.pg.worldToLocal(q);
+    if(Math.abs(q.x)<0.75 && Math.abs(q.y)<0.75 && q.z>-0.6 && q.z<1.6) return {kind:'port',p}; }
+  for(const m of masts){
+    if(m.state!=='up') continue;
+    if(m.topState==='up'){ q.copy(pos); m.topG.worldToLocal(q); if(Math.abs(q.x)<0.6 && Math.abs(q.z)<0.6 && q.y>0 && q.y<m.def.h-m.lh+0.6) return {kind:'top',m}; }
+    q.copy(pos); m.group.worldToLocal(q); if(Math.abs(q.x)<0.8 && Math.abs(q.z)<0.8 && q.y>0 && q.y<m.lh) return {kind:'lower',m};
+  }
+  if(lp.x>BOW && lp.x<STERN+0.2){
+    const top=topAt(lp.x)+(lp.x>13.5?1.1:0);
+    if(lp.y>KEEL && lp.y<top && Math.abs(lp.z)<sideZ(lp.x,clamp(lp.y,KEEL,top))+0.35) return {kind:'hull',sec:secOf(lp.x)};
+  }
+  for(const m of masts){ if(m.state!=='up') continue;
+    for(const s of m.sails){ if(s.torn||(s.top&&m.topState!=='up')) continue; q.copy(pos); s.mesh.worldToLocal(q); if(Math.abs(q.x)<s.w/2 && Math.abs(q.y)<s.h/2 && Math.abs(q.z)<1.6) return {kind:'sail',m,s}; } }
+  return null;
+}
+
+// ---------- 被弾の処理 ----------
+function worldPosOf(obj,y){ return obj.localToWorld(new V3(0,y||0,0)); }
+function toSea(c,thrown){
+  if(c.state!=='ok') return;
+  c.state='sea'; stats.overboard++;
+  scene.attach(c.obj);
+  c.vel=thrown?new V3(rand(-3,3),rand(4,8),rand(2,6)):new V3(rand(-1.5,1.5),rand(0.5,2),rand(0.5,2.5));
+  c.spin=rand(-5,5); c.mode='fall'; c.swim=true; c.life=0;
+  c.armL.rotation.x=-2.5; c.armR.rotation.x=-2.2;
+  bodies.push(c);
+}
+function killCrew(c){
+  if(c.state!=='ok') return;
+  c.state='dead'; stats.kills++;
+  if(c.mast>=0){ scene.attach(c.obj); c.vel=new V3(rand(-1,1),0.5,rand(0,1)); c.spin=rand(-4,4); c.mode='fall'; c.swim=false; }
+  else { c.mode='lie'; }
+  c.life=0; bodies.push(c);
+}
+function crewNear(lx,lz,r,filter){ return crew.filter(c=>c.state==='ok'&&c.mast<0&&(!filter||filter(c))&&Math.hypot(c.obj.position.x-lx,c.obj.position.z-lz)<r); }
+function breakTop(m){
+  if(m.topState!=='up') return;
+  m.topState='falling'; m.topFallT=0; m.topHp=0; stats.tops++;
+  for(const c of crew) if(c.state==='ok' && c.mast===masts.indexOf(m) && c.part==='top') toSea(c,false);
+  popText(worldPosOf(m.topG,(m.def.h-m.lh)*0.5),'上檣を折った','#ffe2b8',true);
+  wood(worldPosOf(m.topG,0.5),12); creak(); addShake(0.15);
+}
+function breakLower(m){
+  if(m.state!=='up') return;
+  m.state='falling'; m.fallT=0; m.lowerHp=0; stats.masts++; m.stub.visible=true;
+  if(m.topState==='up') m.topState='riding';
+  const mi=masts.indexOf(m);
+  for(const c of crew){ if(c.state!=='ok') continue; if(c.mast===mi) toSea(c,false); }
+  for(const c of crewNear(m.def.x,0,3.5)) if(Math.random()<0.5) toSea(c,true);
+  if(mi===0) for(const j of jibs) j.visible=false;
+  popText(worldPosOf(m.group,m.def.h*0.45),`${m.def.name}を折った`,'#ffe2b8',true);
+  wood(worldPosOf(m.group,1),18); creak(); noise(1.0,800,.7); addShake(0.3);
+}
+function tearSail(s,burnt){
+  if(s.torn) return;
+  s.torn=true; s.hp=0; s.mat.map=sailTornTex; s.mat.needsUpdate=true; stats.sails++;
+  if(burnt){ s.burnt=true; s.mat.color.setHex(0x5a4a3a); }
+  popText(s.mesh.localToWorld(new V3(0,0,0)),burnt?'帆が燃え落ちた':'帆を破った','#e8cf8a');
+  for(const c of crew) if(c.state==='ok' && c.sail===s && Math.random()<0.5) toSea(c,false);
+}
+function damageSection(key,dmg){
+  const s=sections[key]; if(!s) return;
+  s.hp=Math.max(0,s.hp-dmg);
+  if(s.hp<=0 && !s.dead) destroySection(key);
+}
+function destroySection(key){
+  const s=sections[key]; s.dead=true; destroyedCount++; stats.sections.push(s.name);
+  const cx = key==='bow'?-18:key==='stern'?19:0;
+  const wp=ship.localToWorld(new V3(cx,6,7));
+  popText(ship.localToWorld(new V3(cx,14,7)),`${s.name}を砕いた`,'#ffd7c2',true);
+  for(let i=0;i<4;i++){ const p=ship.localToWorld(new V3(cx+rand(-5,5),rand(2,7),6.8)); sparks(p,12,10); smoke(p,5,3,0x2e2622,1,3); flashAt(p,5); }
+  lightFlash(wp,8); noise(1.4,450,.9); addShake(0.4);
+  for(let i=0;i<3;i++) decalAt(cx+rand(-5,5),rand(1.5,6),rand(1.6,2.6),holeMat);
+  startFire(ship,new V3(cx,key==='stern'?9.4:key==='bow'?8.3:7,rand(-2,2)),{sec:key,dur:Infinity,big:true,noDamage:true});
+  if(key==='bow'){ bowspritFall=0.001; masts[0].stayLine.visible=false; trimT+=0.035; for(const c of crew) if(c.state==='ok'&&c.zone==='fc') toSea(c,true); }
+  if(key==='stern'){ staffFall=0.001; trimT-=0.035; for(const l of lanterns){ l.l.material.emissiveIntensity=0; l.s.visible=false; } for(const c of crew) if(c.state==='ok'&&c.zone==='qd') toSea(c,true); }
+  if(key==='mid'){ listT+=0.06; for(const b of boats){ if(b.visible){ wood(b.localToWorld(new V3()),12); b.visible=false; } } for(const c of crewNear(0,0,7)) if(Math.random()<0.5) toSea(c,true); }
+  if(destroyedCount>=SINK_AT && !sinking) sinkShip();
+  else showBanner(`${s.name}、崩れる`,'#ffd7c2');
+}
+function sinkShip(){
+  sinking=true;
+  for(const c of crew) toSea(c,true);
+  popText(worldPosOf(ship,20),'撃沈','#ffffff',true);
+  showBanner('瑛艦、沈む','#ffd7c2');
+  for(let i=0;i<6;i++){ const p=ship.localToWorld(new V3(rand(-20,20),rand(2,7),7)); sparks(p,12,10); smoke(p,6,3,0x3c3430,1,3); }
+  noise(1.6,400,.9); addShake(0.5);
+}
+function destroyPort(p){
+  p.dead=true; p.hp=0; stats.ports++;
+  p.lid.visible=false; p.barrel.rotation.x=0.45; p.barrel.position.z=-0.2; p.hole.material=scorchMat;
+  const wp=p.pg.localToWorld(new V3(0,0,0.5));
+  popText(wp,'砲門を潰した','#ffe2b8');
+  sparks(wp,10,8); smoke(wp,4,1.4,0x3a3230,0.4,2);
+  for(const c of crewNear(p.x,5,2.2)) if(Math.random()<0.4) toSea(c,true);
+}
+function applyHit(p,hit){
+  const w=(p.magic?MAGIC:WEAPONS)[p.w];
+  const waterM=p.magic&&p.w==='bow', fireM=p.magic&&p.w==='gun';
+  stats.hits[p.w]++;
+  lp.copy(p.pos); ship.worldToLocal(lp);
+  if(hit.kind==='crew'){
+    if(waterM){ toSea(hit.c,true); popText(p.pos,'押し流した','#bfe4ff'); }
+    else { killCrew(hit.c); popText(p.pos,p.magic?'倒した':'討ち取った','#ffffff'); }
+    if(p.w==='cannon') damageSection(secOf(lp.x),Math.round(w.dmg*0.5));
+  } else if(hit.kind==='port'){
+    hit.p.hp-=w.dmg; damageSection(secOf(hit.p.x),Math.round(w.dmg*0.5));
+    if(hit.p.hp<=0) destroyPort(hit.p); else popText(p.pos,'砲門 −'+w.dmg,'#ffb59a');
+    hullFlash=1;
+  } else if(hit.kind==='top'){
+    hit.m.topHp-=w.dmg; popText(p.pos,'上檣 −'+w.dmg,'#e8cf8a');
+    if(hit.m.topHp<=0) breakTop(hit.m);
+  } else if(hit.kind==='lower'){
+    hit.m.lowerHp-=w.dmg; popText(p.pos,'下檣 −'+w.dmg,'#e8cf8a');
+    if(hit.m.lowerHp<=0) breakLower(hit.m);
+  } else if(hit.kind==='sail'){
+    const s=hit.s, sd=Math.round(w.dmg*SAIL_MULT);
+    s.hp-=w.dmg; s.flap=1;
+    popText(p.pos,`帆 −${w.dmg}`,'#e8cf8a');
+    if(s.top){ hit.m.topHp-=sd; if(hit.m.topHp<=0) breakTop(hit.m); }
+    else { hit.m.lowerHp-=sd; if(hit.m.lowerHp<=0) breakLower(hit.m); }
+    if((p.w==='cannon'||fireM) && !s.torn){ const lpS=s.mesh.worldToLocal(p.pos.clone()); startFire(s.mesh,new V3(lpS.x,lpS.y,-0.4),{sail:s,dur:20}); }
+    if(s.hp<=0) tearSail(s,false);
+  } else {
+    hullFlash=1;
+    popText(p.pos,`${sections[hit.sec].name} −${w.dmg}`,'#ffb59a');
+    const fireAt=()=>startFire(ship,new V3(lp.x,clamp(lp.y,1,topAt(lp.x)),Math.sign(lp.z)*sideZ(lp.x,clamp(lp.y,1,7))),{sec:hit.sec,dur:FIRE.dur});
+    if(p.w==='cannon'){ decalAt(lp.x,lp.y,rand(1.1,1.6),p.magic?scorchMat:holeMat); if(Math.random()<FIRE.chance && lp.y>1) fireAt(); }
+    else if(fireM){ decalAt(lp.x,lp.y,0.9,scorchMat); if(Math.random()<0.3 && lp.y>1) fireAt(); }
+    else if(p.w==='gun') decalAt(lp.x,lp.y,0.35,holeMat);
+    damageSection(hit.sec,w.dmg);
+  }
+  if(p.w==='cannon'){
+    for(const c of crew){ if(c.state!=='ok') continue; if(worldPosOf(c.obj,1).distanceTo(p.pos)<BLAST_R) toSea(c,true); }
+    sparks(p.pos,24,12); flashAt(p.pos,6); smoke(p.pos,12,2.4,0x4a403a,1.2,2); wood(p.pos,18); addShake(0.2); lightFlash(p.pos,7);
+    if(!p.magic) noise(.8,900,.7);
+  } else if(waterM){
+    for(let i=0;i<16;i++) emit(p.pos,{vx:rand(-4,4),vy:rand(0,6),vz:rand(-4,4),life:rand(.5,1),size:rand(0.25,0.6),color:0xbfe6ff,g:9.8,op:.9});
+    emit(p.pos,{life:0.3,size:2,color:0x7fc8ff,add:true}); noise(.2,1800,.15);
+  } else if(fireM){
+    for(let i=0;i<10;i++) emit(p.pos,{tex:fireTex,vx:rand(-3,3),vy:rand(0,4),vz:rand(-3,3),life:rand(.3,.7),size:rand(0.8,1.6),color:0xffffff,add:true});
+    sparks(p.pos,10,7); lightFlash(p.pos,3); noise(.3,1200,.3);
+  } else if(p.w==='gun'){ sparks(p.pos,6,6); if(hit.kind!=='crew') wood(p.pos,4); noise(.12,3000,.2); }
+  else { if(hit.kind!=='crew') wood(p.pos,2); noise(.06,4000,.12); }
+}
+
+// ---------- 火災 ----------
+function startFire(parent,local,o){
+  if(fires.length>=14) return;
+  const g=new THREE.Group(); g.position.copy(local); parent.add(g);
+  const flames=[], n=o.big?6:3;
+  for(let i=0;i<n;i++){ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:fireTex,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+    s.position.set(rand(-.6,.6)*(o.big?2.4:1),0,rand(-.4,.4)*(o.big?2:1)); g.add(s); flames.push({s,ph:rand(0,6),sz:rand(1.1,1.9)*(o.big?1.8:1)}); }
+  fires.push({g,parent,flames,life:0,dur:o.dur,sec:o.sec,sail:o.sail,big:o.big,noDamage:o.noDamage,smokeT:0,local:local.clone()});
+  if(!o.noDamage){ stats.fires++; popText(g.getWorldPosition(new V3()),'火の手','#ffb070'); }
+}
+function updateFires(dt){
+  for(const f of fires){
+    f.life+=dt;
+    for(const fl of f.flames){ const k=1+0.3*Math.sin(t*11+fl.ph)+0.15*Math.sin(t*23+fl.ph*2); fl.s.scale.set(fl.sz*0.7*k,fl.sz*1.3*k,1); fl.s.position.y=fl.sz*0.5; fl.s.material.opacity=f.life>f.dur-1.5?Math.max(0,(f.dur-f.life)/1.5):1; }
+    f.smokeT-=dt;
+    if(f.smokeT<=0){ f.smokeT=f.big?0.07:0.14; f.g.getWorldPosition(tmpV); tmpV.y+=1.4; emit(tmpV,{tex:smokeTex,vx:rand(-.6,.6)-0.8,vy:rand(2.5,4),vz:rand(-.6,.6),life:rand(2.5,4),size:f.big?3:1.8,grow:f.big?5:3,color:0x2f2926,op:0.7,drag:0.2}); if(Math.random()<0.3) emit(tmpV,{vx:rand(-1,1),vy:rand(3,6),vz:rand(-1,1),life:1.2,size:0.18,color:0xffa040,add:true}); }
+    if(sinking) continue;
+    if(f.sail){ if(f.sail.torn){ f.life=Math.max(f.life,f.dur-1.4); } else { f.sail.hp-=FIRE.sailDps*dt; if(f.sail.hp<=0) tearSail(f.sail,true); } }
+    else if(f.parent===ship){
+      if(!f.noDamage) damageSection(f.sec,FIRE.dps*dt);
+      for(const c of crewNear(f.local.x,f.local.z,FIRE.panicR)){
+        const dx=c.obj.position.x-f.local.x, dz=c.obj.position.z-f.local.z, d=Math.hypot(dx,dz)||1;
+        c.tx=clamp(f.local.x+dx/d*6,ZONES[c.zone].x[0],ZONES[c.zone].x[1]); c.tz=clamp(f.local.z+dz/d*6,ZONES[c.zone].z[0],ZONES[c.zone].z[1]); c.wait=0; c.flee=1;
+        if(d<1.8 && Math.random()<FIRE.jumpRate*dt) toSea(c,true);
+      }
+    }
+  }
+  for(const f of fires) if(f.life>=f.dur){ if(f.g.parent) f.g.parent.remove(f.g); f.done=true; }
+  fires=fires.filter(f=>!f.done);
+}
+
+// ---------- 瑛艦の反撃 ----------
+function startCounter(){
+  state='counter'; counterT=0; counterIdx=0; setZoom(false);
+  for(const p of shots) scene.remove(p.mesh); shots=[];
+  for(const c of casts) scene.remove(c.cloud); casts=[]; strikeMark.material.opacity=0;
+  counterQueue=ports.filter(p=>!p.dead).sort((a,b)=>a.x-b.x);
+  showBanner(counterQueue.length?'反撃、始まる':'瑛兵の小銃が火を噴く','#ff9c86');
+}
+function fireCounter(p){
+  const from=p?p.pg.localToWorld(new V3(0,0,1.4)):ship.localToWorld(new V3(rand(15,23),10.5,5.5));
+  flashAt(from,p?7:2); sparks(from,10,10); smoke(from,p?10:3,p?3.5:1.2,0xe0dbd0,1.2,1.5); lightFlash(from,p?8:3);
+  noise(p?0.9:0.3,p?380:2000,0.55);
+  if(!p) return;
+  const to=new V3(rand(-12,14),3.2,rand(-7,4));
+  const T=1.25+rand(0,.2);
+  const vel=to.clone().sub(from).divideScalar(T); vel.y+=0.5*G*T;
+  const m=new THREE.Mesh(new THREE.SphereGeometry(0.4,8,6),lam(0x0f0d0c)); m.position.copy(from); scene.add(m);
+  eballs.push({mesh:m,pos:from.clone(),vel});
+}
+
+// ---------- 更新 ----------
+function animSail(s,dt){
+  const a=s.geo.attributes.position, b=s.base;
+  s.flap=Math.max(0,s.flap-dt*1.5);
+  const loose=s.torn?1.8:1, amp=(0.45+0.8)*(s.burnt?0.3:1);
+  for(let i=0;i<a.count;i++){ const x=b[i*3], y=b[i*3+1], u=x/s.w+0.5, v=y/s.h+0.5;
+    const bulge=Math.sin(Math.PI*u)*(0.4+0.85*Math.sin(Math.PI*Math.min(1,v+0.1)))*amp;
+    const wob=Math.sin(t*1.8+s.ph+u*3+v*2)*0.08*loose+Math.sin(t*7+u*9)*0.12*s.flap+(s.torn?Math.sin(t*5+u*7+v*4)*0.25*(1-v):0);
+    a.setZ(i,-(bulge*(1+0.06*Math.sin(t*1.3+s.ph))+wob)); }
+  a.needsUpdate=true; s.geo.computeVertexNormals();
+}
+function animFlag(mesh,base,w,dt,amp){
+  const a=mesh.geometry.attributes.position;
+  for(let i=0;i<a.count;i++){ const x=base[i*3], y=base[i*3+1], u=x/w+0.5; a.setZ(i,Math.sin(t*5-u*5+y*0.4)*amp*u); }
+  a.needsUpdate=true; mesh.geometry.computeVertexNormals();
+}
+function walkPose(c,moving,sp){
+  const ph=t*sp*5+c.ph, s=moving?Math.sin(ph)*0.6:0;
+  c.legL.rotation.x=s; c.legR.rotation.x=-s;
+  if(c.kind!=='marine'){ c.armL.rotation.x=-s*0.8; c.armR.rotation.x=s*0.8; }
+  else { c.armR.rotation.x=-0.3; c.armL.rotation.x=-s*0.5; }
+}
+function update(dt){
+  t+=dt;
+  waterMat.uniforms.uTime.value=t;
+  for(const c of clouds){ c.s.position.x=c.x0+Math.sin(t*0.02+c.x0)*40; }
+  for(const p of plume){ const k=(t*0.03+p.k)%1; p.s.position.set(-650-k*260+Math.sin(k*6+p.k*9)*15,200+k*300,-1350+k*40); const sc=34+k*150; p.s.scale.set(sc,sc,1); p.s.material.opacity=0.6*(1-k); p.s.material.rotation=p.k*6+k; }
+  for(const g of gulls){ const a=t*g.sp+g.ph; g.g.position.set(g.cx+Math.cos(a)*g.rad,g.cy+Math.sin(a*2.3)*2,g.cz+Math.sin(a)*g.rad*0.6); g.g.rotation.y=-a+(g.sp>0?0:Math.PI); const f=Math.sin(t*8+g.ph)*0.6; g.l.rotation.z=f; g.r.rotation.z=-f; }
+  toroLight.material.opacity=0.65+0.15*Math.sin(t*7)+0.1*Math.sin(t*13);
+  for(const b of bolts){ b.life+=dt; const f=b.life<0.08?1:b.life<0.14?0.2:b.life<0.22?0.9:Math.max(0,1-(b.life-0.22)/0.25); b.core.opacity=f; b.halo.opacity=0.35*f; if(b.life>0.5){ scene.remove(b.g); b.done=true; } }
+  bolts=bolts.filter(b=>!b.done);
+  if(mode==='magic'){
+    for(const m of motes){ m.s.position.set(m.x+Math.sin(t*m.sp+m.ph)*2,m.y+Math.sin(t*m.sp*1.3+m.ph)*1.2,m.z+Math.cos(t*m.sp+m.ph)*2); m.s.material.opacity=0.35+0.35*Math.sin(t*2+m.ph); }
+    const ready=state==='play'&&cur==='cannon'&&gameT>=readyAt.cannon&&ammo.cannon>0;
+    magicCircle.rotation.z=t*0.25; magicCircle.material.opacity=(ready?0.9:0.4)+0.1*Math.sin(t*3);
+    circleG.position.y=4.5+Math.sin(t*1.2)*0.08;
+    orbs.forEach((o,i)=>{ const a=-t*0.9+i*Math.PI*2/5; o.position.set(Math.cos(a)*1.3,Math.sin(a)*1.3,0.2+Math.sin(t*2+i)*0.08); });
+  }
+  { const a=flag.geometry.attributes.position; for(let i=0;i<a.count;i++){ const x=noboriBase[i*3], y=noboriBase[i*3+1], v=(1.8-y)/3.6; a.setZ(i,Math.sin(t*2.2+v*3)*0.12*v+Math.sin(t*3.1+x*3)*0.03); } a.needsUpdate=true; }
+  for(const m of masts) for(const s of m.sails) if(s.mesh.visible) animSail(s,dt);
+  if(masts[1].flagMesh) animFlag(masts[1].flagMesh,masts[1].flagBase,3.6,dt,0.35);
+  animFlag(ensign,ensignBase,4.2,dt,0.4);
+  for(const l of lanterns) if(l.s.visible) l.s.material.opacity=0.75+0.2*Math.sin(t*6+l.l.position.z);
+  for(const f of flashLights){ f.v=Math.max(0,f.v-dt*18); f.l.intensity=f.v; }
+
+  // 船の姿勢
+  listV+=(listT-listV)*Math.min(1,dt*0.8); trimV+=(trimT-trimV)*Math.min(1,dt*0.8);
+  if(sinking){ sinkY-=1.1*dt; listT=Math.min(0.2,listT+0.02*dt); if(Math.random()<dt*8) splash(ship.localToWorld(new V3(rand(-24,24),0,rand(-7,7))).setY(0),false); }
+  ship.position.y=Math.sin(t*0.8)*0.18+sinkY;
+  ship.rotation.x=Math.sin(t*0.6)*0.012+listV;
+  ship.rotation.z=Math.sin(t*0.5)*0.008+trimV;
+  hullFlash=Math.max(0,hullFlash-dt*3); hullMat.emissive.setRGB(hullFlash*0.45,hullFlash*0.18,0);
+  if(bowspritFall>0){ bowspritFall+=dt; bowsprit.rotation.z=Math.min(0.9,bowspritFall*bowspritFall*1.2); if(bowspritFall>2.5) bowsprit.visible=false; }
+  if(staffFall>0){ staffFall+=dt; staff.rotation.x=Math.min(1.5,staffFall*staffFall*1.5); if(staffFall>2.2) staff.visible=false; }
+
+  // 帆柱が倒れる
+  for(const m of masts){
+    if(m.topState==='falling'){
+      m.topFallT+=dt; m.topG.rotation.x=Math.min(1.6,1.4*m.topFallT*m.topFallT);
+      if(m.topFallT>1.0 && !m.topSplashed){ m.topSplashed=true; const tp=worldPosOf(m.topG,(m.def.h-m.lh)*0.8); tp.y=0; splash(tp,true); }
+      if(m.topFallT>1.1) m.topG.position.y-=3*dt;
+      if(m.topFallT>3.5){ m.topG.visible=false; m.topState='gone'; }
+    }
+    if(m.state==='falling'){
+      m.fallT+=dt; m.group.rotation.x=Math.min(1.5,1.25*m.fallT*m.fallT);
+      if(m.fallT>1.1 && !m.splashed){ m.splashed=true; const tp=worldPosOf(m.group,m.def.h*0.8); tp.y=0; splash(tp,true); ring(tp,8); noise(.8,600,.5); }
+      if(m.fallT>1.2) m.group.position.y-=2.5*dt;
+      if(m.fallT>4){ m.group.visible=false; m.state='gone'; if(m.topState==='riding') m.topState='gone'; }
+    }
+  }
+  scene.updateMatrixWorld();
+
+  if(state==='play'){
+    gameT+=dt;
+    const prep=clamp(gameT/diff.time,0,1);
+    for(const p of ports){
+      if(p.dead) continue;
+      const at=0.06+p.rank/ports.length*0.88;
+      p.open+=((prep>=at?1:0)-p.open)*Math.min(1,dt*2.5);
+      p.lidP.rotation.x=-1.3*p.open; p.barrel.position.z=-0.75+1.35*p.open;
+    }
+    const rem=diff.time-gameT;
+    if(warned<1 && rem<=30){ warned=1; showBanner('砲門が開きつつある','#ffcfb8'); }
+    if(warned<2 && rem<=10){ warned=2; showBanner('反撃まで あと十秒','#ff9c86'); }
+    // 瑛兵
+    const walk=diff.walk*(prep>0.8?1.4:1);
+    for(const c of crew){
+      if(c.state!=='ok') continue;
+      if(c.mast>=0){ c.obj.rotation.z=Math.sin(t*1.3+c.ph)*0.05; continue; }
+      const sp=walk*(c.flee?1.8:1)*(c.zone==='qd'?0.6:1);
+      if(c.wait>0){ c.wait-=dt; walkPose(c,false,sp); continue; }
+      const o=c.obj.position, dx=c.tx-o.x, dz=c.tz-o.z, d=Math.hypot(dx,dz);
+      if(d<0.2){ c.wait=rand(0.3,1.6); c.flee=0; pickTarget(c); walkPose(c,false,sp); continue; }
+      const st=Math.min(d,sp*dt); o.x+=dx/d*st; o.z+=dz/d*st; o.y=ZONES[c.zone].y+Math.abs(Math.sin(t*sp*5+c.ph))*0.05;
+      c.obj.rotation.y=Math.atan2(dx,dz); walkPose(c,true,sp);
+    }
+    // 弾
+    for(const p of shots){
+      const steps=Math.max(1,Math.ceil(p.vel.length()*dt/0.25)), h=dt/steps;
+      for(let i=0;i<steps&&!p.dead;i++){
+        p.vel.y-=G*h; p.pos.addScaledVector(p.vel,h);
+        const hit=hitTest(p.pos);
+        if(hit){ applyHit(p,hit); p.dead=true; break; }
+        if(p.pos.z>-6.2 && p.pos.y<=3.05){ p.dead=true; dust(p.pos,p.w==='cannon'); break; }
+        if(p.pos.y<=waveY(p.pos.x,p.pos.z)){ p.dead=true; splash(p.pos,p.w==='cannon'); if(p.magic&&p.w==='gun') smoke(p.pos,6,1.8,0xf0f2f6,0.6,3); noise(p.w==='cannon'?.4:.12,1400,p.w==='cannon'?.3:.08); break; }
+        if(p.pos.z<-600||Math.abs(p.pos.x)>400) p.dead=true;
+      }
+      p.mesh.position.copy(p.pos);
+      if(p.magic){
+        if(p.w==='bow'){ if(Math.random()<0.8) emit(p.pos,{vx:rand(-.5,.5),vy:rand(-1,.5),vz:rand(-.5,.5),life:rand(.3,.6),size:rand(0.12,0.3),color:0xbfe6ff,op:.8,g:4}); }
+        else { emit(p.pos,{tex:fireTex,life:0.35,size:rand(0.7,1.1),color:0xffffff,add:true}); if(Math.random()<0.4) emit(p.pos,{tex:smokeTex,life:0.8,size:0.6,grow:1,color:0x3a3230,op:0.4}); }
+      }
+      else if(p.w==='bow') p.mesh.lookAt(tmpV.copy(p.pos).add(p.vel));
+      else if(p.w==='cannon' && Math.random()<0.6) emit(p.pos,{tex:smokeTex,life:0.9,size:0.9,grow:1.4,color:0xcfc8bc,op:0.4});
+      else if(p.w==='gun') emit(p.pos,{life:0.3,size:0.3,color:0xfff0c8,op:0.5,add:true});
+      if(p.dead) scene.remove(p.mesh);
+    }
+    shots=shots.filter(p=>!p.dead);
+    // 落雷：雲が集まり、一拍おいて落ちる
+    for(const c of casts){
+      if(!c.struck){
+        c.t-=dt; const k=1-c.t/STRIKE_DELAY;
+        c.cloud.material.opacity=Math.min(0.9,k*1.4); c.cloud.material.rotation+=dt*0.8;
+        strikeMark.position.copy(c.pos); strikeMark.lookAt(camera.position); strikeMark.material.opacity=0.45+0.4*Math.sin(t*30); strikeMark.scale.setScalar(1.6-k);
+        if(Math.random()<dt*10) emit(tmpW.copy(c.cloud.position).add(new V3(rand(-12,12),rand(-4,4),rand(-5,5))),{life:0.12,size:rand(6,12),color:0xb8c4ff,add:true,op:0.6});
+        if(c.t<=0){ c.struck=true; strikeMark.material.opacity=0; strike(c); }
+      } else { c.after+=dt; c.cloud.material.opacity=Math.max(0,0.9-c.after*0.6); if(c.after>1.6){ scene.remove(c.cloud); c.done=true; } }
+    }
+    casts=casts.filter(c=>!c.done);
+    updateFires(dt);
+
+    // 勝敗
+    if(endTimer<0){
+      if(aliveCrew()===0){ endKind='win'; endTimer=2.8; if(!sinking) showBanner('瑛艦、沈黙す','#ffd7c2'); }
+      else if(gameT>=diff.time){ startCounter(); }
+      else if(ORDER.every(k=>ammo[k]<=0) && shots.length===0 && casts.length===0){ endKind='ammo'; endTimer=1.6; showBanner(mode==='magic'?'魔力、尽きる':'弾薬、尽きる','#ff9c86'); }
+    } else { endTimer-=dt; if(endTimer<=0) finish(endKind); }
+  } else {
+    updateFires(dt);
+    if(state==='counter'){
+      counterT+=dt;
+      for(const p of ports){ if(p.dead) continue; p.open+=(1-p.open)*Math.min(1,dt*4); p.lidP.rotation.x=-1.3*p.open; p.barrel.position.z=-0.75+1.35*p.open; }
+      const n=Math.max(counterQueue.length,6);
+      while(counterIdx<n && counterT>0.5+counterIdx*0.09){ fireCounter(counterQueue[counterIdx]||null); counterIdx++; }
+      if(counterT>4.4) finish('counter');
+    }
+  }
+
+  // 反撃の砲弾
+  for(const b of eballs){
+    b.vel.y-=G*dt; b.pos.addScaledVector(b.vel,dt); b.mesh.position.copy(b.pos);
+    if(Math.random()<0.5) emit(b.pos,{tex:smokeTex,life:0.8,size:1,grow:1.2,color:0xcfc8bc,op:0.4});
+    if(b.pos.y<=3.1 && b.pos.z>-6.5){ b.dead=true; dust(b.pos,true); noise(1.0,500,.7); addShake(0.6); flashV=Math.max(flashV,0.55); flashColor('#ffdcb0'); }
+    else if(b.pos.y<=0){ b.dead=true; splash(b.pos,true); }
+    if(b.dead) scene.remove(b.mesh);
+  }
+  eballs=eballs.filter(b=>!b.dead);
+
+  // 瑛兵の落下・泳ぎ・倒れ
+  for(const c of bodies){
+    c.life+=dt;
+    if(c.mode==='fall'){
+      c.vel.y-=G*dt; c.obj.position.addScaledVector(c.vel,dt); c.obj.rotation.x+=c.spin*dt;
+      c.legL.rotation.x=Math.sin(t*14)*0.7; c.legR.rotation.x=-Math.sin(t*14)*0.7;
+      const wy=waveY(c.obj.position.x,c.obj.position.z);
+      if(c.obj.position.y<=wy){
+        splash(c.obj.position,false);
+        if(c.swim){ c.mode='swim'; c.life=0; c.obj.rotation.set(0,rand(0,6),0); c.drift=new V3(rand(-0.4,0.4),0,rand(0.3,0.8)); }
+        else c.gone=true;
+      }
+    } else if(c.mode==='swim'){
+      c.obj.position.addScaledVector(c.drift,dt);
+      c.obj.position.y=waveY(c.obj.position.x,c.obj.position.z)-2.35+Math.sin(c.life*3+c.ph)*0.08;
+      c.armL.rotation.x=-2+Math.sin(t*4+c.ph)*0.8; c.armR.rotation.x=-2-Math.sin(t*4+c.ph)*0.8;
+      if(c.life>6){ setOpacity(c,Math.max(0,1-(c.life-6)/1.5)); if(c.life>7.5) c.gone=true; }
+    } else if(c.mode==='lie'){
+      c.obj.rotation.x=Math.max(-Math.PI/2,-c.life*6);
+      if(c.life>0.6) setOpacity(c,Math.max(0,1-(c.life-0.6)/1.0));
+      if(c.life>1.6) c.gone=true;
+    }
+    if(c.gone && c.obj.parent) c.obj.parent.remove(c.obj);
+  }
+  bodies=bodies.filter(c=>!c.gone);
+
+  // 粒子
+  for(const p of pool){
+    if(!p.active) continue;
+    p.life+=dt;
+    if(p.life>=p.max){ p.active=false; p.s.visible=false; continue; }
+    p.vel.y-=p.g*dt; if(p.drag) p.vel.multiplyScalar(1-p.drag*dt);
+    p.s.position.addScaledVector(p.vel,dt);
+    if(p.grow){ const s=p.size+p.grow*p.life; p.s.scale.set(s,s,1); }
+    p.m.opacity=p.op*(1-p.life/p.max);
+  }
+  for(const r of rings){ if(!r.m.visible) continue; r.life+=dt; const k=r.life/r.max; if(k>=1){ r.m.visible=false; continue; } const s=r.size*(0.3+k); r.m.scale.set(s,1,s); r.m.material.opacity=0.7*(1-k); }
+  // 崖下の波しぶき
+  if(Math.random()<dt*1.5){ const x=rand(-18,24); for(let i=0;i<8;i++) emit(tmpW.set(x+rand(-1,1),0.3,-6.6),{vx:rand(-1,1),vy:rand(2,4.5),vz:rand(-1.5,0.3),life:rand(.6,1),size:rand(0.3,0.7),color:0xf0f4f6,g:9.8,op:.8}); }
+
+  // カメラ
+  const fovT=zoom?16:45; camera.fov+=(fovT-camera.fov)*Math.min(1,dt*8); camera.updateProjectionMatrix();
+  shake=Math.max(0,shake-dt*1.2);
+  camera.position.set(CAM_BASE.x+rand(-shake,shake),CAM_BASE.y+rand(-shake,shake)*0.6,CAM_BASE.z);
+  flashV=Math.max(0,flashV-dt*1.5);
+
+  if(state==='play'){ updateAim(); poseWeapons(); }
+  updatePreview();
+}
+
+// ---------- 表示の同期 ----------
+const hudEl=$('hud'), retEl=$('reticle'), crossEl=$('cross');
+let lastHud='';
+function syncUI(){
+  for(const k of ORDER){
+    const on=k===cur, empty=ammo[k]<=0;
+    const rem=Math.max(0,readyAt[k]-gameT), p=state==='play'?1-rem/WEP()[k].reload:1;
+    const key=`${on}|${empty}|${ammo[k]}|${p.toFixed(2)}`;
+    if(lastUI[k]===key) continue; lastUI[k]=key;
+    armEls[k].classList.toggle('on',on); armEls[k].classList.toggle('empty',empty);
+    ammoEls[k].textContent=ammo[k]; armEls[k].style.setProperty('--p',clamp(p,0,1));
+  }
+  if(state==='play'||state==='counter'){
+    const rem=Math.max(0,diff.time-gameT), mm=Math.floor(rem/60), ss=Math.floor(rem%60);
+    const prep=clamp(gameT/diff.time,0,1), alive=aliveCrew(), portsLeft=ports.filter(p=>!p.dead).length;
+    const secKey=Object.keys(sections).map(k=>Math.ceil(sections[k].hp)).join(',');
+    const key=`${mm}:${ss}|${Math.floor(prep*100)}|${alive}|${secKey}|${portsLeft}|${masts.map(m=>m.state+m.topState).join()}`;
+    if(key!==lastHud){
+      lastHud=key;
+      $('tVal').textContent=`${mm}:${String(ss).padStart(2,'0')}`;
+      $('timer').classList.toggle('warn',rem<=30);
+      $('prepBar').style.width=(prep*100)+'%'; $('prepPct').textContent=Math.floor(prep*100)+'%';
+      $('crewVal').textContent=alive; $('crewMax').textContent=diff.crew;
+      for(const k of Object.keys(sections)){ const el=$('sec-'+k); el.querySelector('s').style.width=(sections[k].hp/sections[k].max*100)+'%'; el.classList.toggle('dead',sections[k].dead); }
+      $('mastIcons').innerHTML=masts.map(m=>`<span class="mi" title="${m.def.name}"><u class="t ${m.topState==='up'&&m.state==='up'?'':'off'}"></u><u class="l ${m.state==='up'?'':'off'}"></u></span>`).join('');
+      $('portVal').textContent=portsLeft;
+    }
+    const w=WEP()[cur], remR=Math.max(0,readyAt[cur]-gameT);
+    retEl.style.transform=crossEl.style.transform=`translate(${pxX}px,${pxY}px)`;
+    retEl.style.setProperty('--p',remR>0?1-remR/w.reload:1);
+    retEl.classList.toggle('ready',remR<=0);
+    retEl.hidden=crossEl.hidden=!(state==='play');
+  }
+  $('flash').style.opacity=flashV;
+}
+
+// ---------- 画面遷移 ----------
+const startEl=$('start'), resultEl=$('result');
+function begin(){
+  initAudio(); if(actx&&actx.state==='suspended') actx.resume();
+  diff=DIFFS[diffKey]; $('dLabel').textContent=diff.label;
+  if(modeKey==='magic'&&!magicUnlocked) modeKey='normal';
+  mode=modeKey; renderArms(); applyMode();
+  reset(); state='play'; lastHud='';
+  startEl.hidden=true; resultEl.hidden=true; stage.classList.remove('menu'); hudEl.hidden=false;
+  requestAnimationFrame(resize);
+  const r=stage.getBoundingClientRect(); pxX=r.width*0.5; pxY=r.height*0.42; ndc.set(0,0.16);
+  showBanner('瑛艦、迎撃の支度にかかる','#ffd7c2');
+}
+function finish(kind){
+  state='over'; setZoom(false);
+  const fired=ORDER.reduce((a,k)=>a+stats.fired[k],0), hits=ORDER.reduce((a,k)=>a+stats.hits[k],0);
+  const acc=fired?Math.round(hits/fired*100):0, alive=aliveCrew(), rem=Math.max(0,Math.ceil(diff.time-gameT));
+  const portsLeft=ports.filter(p=>!p.dead).length;
+  const title=$('resTitle'), text=$('resText'), rank=$('resRank');
+  const mg=mode==='magic';
+  $('unlockNote').hidden=true;
+  if(kind==='win'){
+    title.textContent= sinking ? '瑛艦、沈む' : '瑛艦、沈黙す';
+    const k=rem/diff.time;
+    rank.textContent = mg ? (k>0.35&&acc>=45 ? '大魔導' : k>0.15 ? '魔導師' : '見習い魔導師') : (k>0.35&&acc>=45 ? '天晴れ' : k>0.15 ? '見事' : '辛勝');
+    if(mg) text.textContent = sinking
+      ? '最後の雷鳴が湾に響き、巨艦は湯気を上げながら夕闇の海へ沈んでいった。泳ぎ去る瑛兵たちは口々に「サツマの魔法使い」と叫んでいたという。'
+      : '瑛艦の甲板から、動く者の姿が消えた。泳ぎ去る瑛兵たちは口々に「サツマの魔法使い」と叫んでいたという。藩士は杖を納め、何事もなかったように番所へ戻った。';
+    else text.textContent = sinking
+      ? '巨艦はゆっくりと傾き、夕闇の海へ沈んでいった。波間には泳ぎ去る瑛兵の頭がいくつも見える。援軍が駆けつけたのは、すべてが終わったあとのことであった。'
+      : `瑛艦の甲板から、動く者の姿が消えた。${stats.masts?'折れた帆柱が波に揺れ、':''}${fires.length?'くすぶる煙の中で、':''}巨艦はただ湾に浮かんでいる。援軍が駆けつけたのは、すべてが終わったあとのことであった。`;
+    if(diffKey==='hard' && unlockMagic()){ $('unlockNote').hidden=false; renderModes(); }
+  } else if(kind==='counter'){
+    title.textContent='反撃、始まる'; rank.textContent='無念';
+    text.textContent= portsLeft
+      ? `残る${portsLeft}門の舷側砲が一斉に火を噴いた。番所は砲煙に包まれ、浜は炎に呑まれた。残る瑛兵は${alive}人。`
+      : `砲門はすべて潰した。だが瑛兵の小銃が一斉に火を噴き、番所は硝煙に包まれた。残る瑛兵は${alive}人。`;
+  } else {
+    title.textContent=mg?'魔力、尽きる':'弾薬、尽きる'; rank.textContent='無念';
+    text.textContent=mg?`魔力を使い果たした。やがて瑛艦の砲門が開き、反撃が始まる。残る瑛兵は${alive}人。`:`矢も弾も撃ち尽くした。やがて瑛艦の砲門が開き、反撃が始まる。残る瑛兵は${alive}人。`;
+  }
+  const used=ORDER.map(k=>`${WEP()[k].name} ${stats.hits[k]}/${stats.fired[k]}`).join('　');
+  $('resStats').innerHTML=`
+    <div><dt>難易度</dt><dd>${diff.label} ${diff.en}${mg?'・魔':''}</dd></div>
+    <div><dt>残り時間</dt><dd>${Math.floor(rem/60)}:${String(rem%60).padStart(2,'0')}</dd></div>
+    <div><dt>${mg?'倒した瑛兵':'討ち取った瑛兵'}</dt><dd>${stats.kills} 人</dd></div>
+    <div><dt>海へ落とした瑛兵</dt><dd>${stats.overboard} 人</dd></div>
+    <div><dt>砕いた船体</dt><dd>${stats.sections.length?stats.sections.join('・'):'なし'}${sinking?'（撃沈）':''}</dd></div>
+    <div><dt>折った帆柱</dt><dd>下檣 ${stats.masts}・上檣 ${stats.tops}</dd></div>
+    <div><dt>破った帆</dt><dd>${stats.sails} 枚</dd></div>
+    <div><dt>潰した砲門</dt><dd>${stats.ports} / 16</dd></div>
+    <div><dt>火の手</dt><dd>${stats.fires} か所</dd></div>
+    <div><dt>命中率</dt><dd>${acc}%</dd></div>
+    <div style="grid-column:1/-1"><dt>${mg?'術ごとの命中 / 詠唱':'得物ごとの命中 / 発射'}</dt><dd style="font-size:14px">${used}</dd></div>`;
+  resultEl.hidden=false; stage.classList.add('menu'); hudEl.hidden=true;
+}
+$('goBtn').addEventListener('click',begin);
+$('againBtn').addEventListener('click',begin);
+$('titleBtn').addEventListener('click',()=>{ state='title'; resultEl.hidden=true; startEl.hidden=false; stage.classList.add('menu'); hudEl.hidden=true; renderDiffs(); renderModes(); });
+
+// ---------- 入力 ----------
+function setPointer(e){
+  const r=cv.getBoundingClientRect();
+  pxX=e.clientX-r.left; pxY=e.clientY-r.top;
+  ndc.set(pxX/r.width*2-1,-(pxY/r.height*2-1));
+}
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('pointerdown',e=>{
+  if(state!=='play') return;
+  if(e.button===2){ setZoom(true); return; }
+  aiming=true; setPointer(e); try{cv.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault();
+});
+cv.addEventListener('pointermove',e=>{ if(state==='play') setPointer(e); });
+cv.addEventListener('pointerup',e=>{
+  if(e.button===2){ setZoom(false); return; }
+  if(state!=='play'||!aiming) return; aiming=false; setPointer(e); updateAim(); fire();
+});
+cv.addEventListener('pointercancel',()=>{ aiming=false; });
+window.addEventListener('keydown',e=>{
+  if(state!=='play') return;
+  if(e.key==='1') select('bow'); else if(e.key==='2') select('gun'); else if(e.key==='3') select('cannon');
+  else if(e.key==='z'||e.key==='Z') setZoom(!zoom);
+  else if(e.key===' '||e.code==='Space'){ e.preventDefault(); fire(); }
+});
+
+// ---------- ループ ----------
+applyMode(); reset(); state='title';
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  update(dt); syncUI();
+  if(cv.offsetParent!==null) renderer.render(scene,camera);
+  requestAnimationFrame(loop);
+}
+resize();
+requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>
